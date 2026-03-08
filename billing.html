@@ -1,0 +1,367 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width,initial-scale=1" />
+<title>客户账单管理系统 - TMS Billing</title>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+<style>
+:root{--accent:#1e63d8;--ok:#2d9f6a;--bad:#e63946;--bg:#f5f7fb;--paid:#4caf50;--unpaid:#ff9800;}
+body{font-family:Arial,Helvetica,sans-serif;margin:0;background:var(--bg);color:#222}
+.header{padding:18px 20px;background:white;display:flex;align-items:center;gap:12px;box-shadow:0 1px 0 rgba(0,0,0,0.06)}
+.header h1{margin:0;font-size:18px;color:var(--accent)}
+.container{max-width:1600px;margin:18px auto;padding:18px}
+
+/* 配置栏 */
+.config-bar { background: #fff; padding: 15px; border-radius: 10px; margin-bottom: 15px; display: flex; gap: 20px; align-items: center; box-shadow: 0 2px 8px rgba(0,0,0,0.05); border-left: 5px solid var(--accent); }
+.config-item { display: flex; align-items: center; gap: 8px; font-size: 13px; font-weight: bold; }
+.input-s { padding: 6px; border: 1px solid #ddd; border-radius: 4px; width: 80px; }
+
+.filterCard{background:white;padding:12px;border-radius:8px;box-shadow:0 2px 8px rgba(0,0,0,0.04);display:flex;gap:12px;align-items:center;margin-bottom:12px}
+.input{padding:8px;border:1px solid #ddd;border-radius:6px;font-size:13px}
+.select{padding:8px;border:1px solid #ddd;border-radius:6px;font-size:13px;width:200px}
+.btn{padding:8px 16px;border-radius:6px;border:none;background:var(--accent);color:white;cursor:pointer;font-weight:600}
+.btn-export{background:var(--ok)}
+.btn-pdf{background:#6366f1}
+
+.table-container{background:white;border-radius:8px;overflow-x:auto;box-shadow:0 2px 8px rgba(0,0,0,0.04)}
+table{width:100%;border-collapse:collapse;font-size:12px;min-width:1500px}
+th{background:#f8f9fc;text-align:left;padding:12px;color:#666;border-bottom:2px solid #edf0f5;white-space:nowrap}
+td{padding:12px;border-bottom:1px solid #edf0f5;color:#444;vertical-align:middle}
+tr:hover{background:#fcfdfe}
+.badge{padding:4px 8px;border-radius:4px;font-weight:bold}
+.badge-paid{background:var(--paid);color:white}
+.badge-unpaid{background:var(--unpaid);color:white}
+
+/* 手动输入框 */
+.extra-input-group { display: flex; align-items: center; gap: 4px; }
+.input-mini { width: 55px; padding: 4px; border: 1px solid #ccc; border-radius: 4px; font-size: 11px; }
+.btn-save { padding: 4px 6px; background: var(--ok); color: white; border: none; border-radius: 4px; cursor: pointer; font-size: 10px; }
+
+/* PDF 模板 */
+#pdfTemplate { 
+    position: absolute; left: -9999px; top: -9999px; 
+    width: 210mm; min-height: 297mm; 
+    padding: 15mm; background: white; color: black; font-family: 'SimSun', serif; 
+}
+.pdf-header { text-align: center; border-bottom: 3px solid #000; padding-bottom: 10px; margin-bottom: 20px; }
+.pdf-info-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin-bottom: 20px; font-size: 12px; }
+.pdf-info-item { border-bottom: 1px solid #eee; padding: 5px 0; }
+.pdf-info-item b { color: #555; display: block; font-size: 10px; text-transform: uppercase; }
+.pdf-section-title { background: #f0f0f0; padding: 8px; font-weight: bold; font-size: 14px; border: 1px solid #ccc; border-bottom: none; }
+.pdf-table { width: 100%; border-collapse: collapse; font-size: 12px; margin-bottom: 20px; }
+.pdf-table th, .pdf-table td { border: 1px solid #ccc; padding: 8px; text-align: left; }
+.pdf-total { font-weight: bold; text-align: right; margin-top: 10px; }
+.pdf-footer { margin-top: 40px; display: grid; grid-template-columns: 1fr 1fr; gap: 60px; }
+.pdf-sig { border-top: 1px solid #000; text-align: center; padding-top: 10px; font-size: 12px; }
+</style>
+</head>
+<body>
+
+<div class="header">
+  <button class="btn" onclick="location.href='index.html'">← 返回</button>
+  <h1>客户账单 / Customer Billing</h1>
+</div>
+
+<div class="container">
+  <div class="config-bar">
+    <div class="config-item">
+      <span>💱 汇率(1 USD : ZMW):</span>
+      <input type="number" id="exRate" class="input-s" value="20" step="0.1">
+    </div>
+    <div style="color:#999; font-size:12px">提示：修改汇率后点击“查询”刷新计算。</div>
+  </div>
+
+  <div class="filterCard">
+    <label>开始日期:</label>
+    <input type="date" id="startDate" class="input">
+    <label>结束日期:</label>
+    <input type="date" id="endDate" class="input">
+    <label>客户:</label>
+    <select id="customerSelect" class="select">
+      <option value="">所有客户</option>
+    </select>
+    <label>关键字(订单/线路):</label>
+    <input type="text" id="keyword" class="input" placeholder="订单号/线路..." style="width:200px">
+    <button class="btn" id="searchBtn">查询</button>
+    <button class="btn btn-pdf" id="genPdfBtn">生成PDF对账单</button>
+  </div>
+
+  <div id="summary" style="background:white;padding:12px;border-radius:8px;margin-bottom:12px;font-weight:bold;color:var(--accent)"></div>
+
+  <div class="table-container">
+    <table>
+      <thead>
+        <tr>
+          <th>订单号</th>
+          <th>客户</th>
+          <th>线路</th>
+          <th>完成日期</th>
+          <th>运费(USD)</th>
+          <th>运费(ZMW)</th>
+          <th>支付状态</th>
+          <th>支付金额(手动)</th>
+          <th>操作</th>
+        </tr>
+      </thead>
+      <tbody id="tableBody">
+        <tr><td colspan="9" style="text-align:center;padding:40px;color:#999">正在同步云端数据...</td></tr>
+      </tbody>
+    </table>
+  </div>
+</div>
+
+<div id="pdfTemplate">
+  <div class="pdf-header">
+    <h1 style="margin:0; font-size: 26px;">Customer Invoice / 客户对账单</h1>
+    <p style="margin:5px 0; font-size: 12px; color: #666;">TMS Billing System</p>
+  </div>
+
+  <div class="pdf-info-grid">
+    <div class="pdf-info-item"><b>Customer / 客户</b><span id="p_customer"></span></div>
+    <div class="pdf-info-item"><b>Period / 期间</b><span id="p_period"></span></div>
+    <div class="pdf-info-item"><b>Date / 日期</b><span id="p_date"></span></div>
+    <div class="pdf-info-item"><b>Total Due / 总额(USD)</b><span id="p_total"></span></div>
+  </div>
+
+  <div class="pdf-section-title">Order Details / 订单明细</div>
+  <table class="pdf-table">
+    <thead>
+      <tr><th>Order ID</th><th>Route</th><th>Date</th><th>Fee (USD)</th><th>Paid</th></tr>
+    </thead>
+    <tbody id="p_tableBody"></tbody>
+  </table>
+  <div class="pdf-total" id="p_totalLine"></div>
+
+  <div class="pdf-footer">
+    <div class="pdf-sig">Customer Signature / 客户签名</div>
+    <div class="pdf-sig">Company Approval / 公司审批</div>
+  </div>
+</div>
+
+<script type="module">
+import { initializeApp } from "https://www.gstatic.com/firebasejs/10.11.1/firebase-app.js";
+import { getDatabase, ref, onValue, update } from "https://www.gstatic.com/firebasejs/10.11.1/firebase-database.js";
+
+const firebaseConfig = {
+  apiKey: "AIzaSyDEbePpsrXwD8Okqa93UOGUFE37c8SFHS0",
+  authDomain: "cjsmartcargo-datebase.firebaseapp.com",
+  databaseURL: "https://cjsmartcargo-datebase-default-rtdb.firebaseio.com",
+  projectId: "cjsmartcargo-datebase",
+  storageBucket: "cjsmartcargo-datebase.firebasestorage.app",
+  messagingSenderId: "751451468006",
+  appId: "1:751451468006:web:a3cbd33cf3c2b29f624b27"
+};
+
+const app = initializeApp(firebaseConfig);
+const db = getDatabase(app);
+
+const tableBody = document.getElementById('tableBody');
+const summaryDiv = document.getElementById('summary');
+const searchBtn = document.getElementById('searchBtn');
+const genPdfBtn = document.getElementById('genPdfBtn');
+const exRateIn = document.getElementById('exRate');
+const customerSelect = document.getElementById('customerSelect');
+
+let allOrders = {};
+let allDispatch = {};
+let uniqueCustomers = new Set();
+
+// 计算运费
+function computeFee(o) {
+    const rate = Number(exRateIn.value) || 20;
+    const fRateObj = o.fRate || (allDispatch[o.relDispatchId] ? allDispatch[o.relDispatchId].fRate : {});
+    const revVal = Number(fRateObj.val || o.totalFee || 0);
+    const revUnit = fRateObj.unit || 'USD';
+    const revenueUSD = (revUnit === 'ZMW') ? (revVal / rate) : revVal;
+    const revenueZMW = revenueUSD * rate;
+
+    // 支付金额 (手动输入)
+    let paidUSD = 0;
+    if (o.paidAmount) {
+        paidUSD = (o.paidAmount.unit === 'ZMW') ? (Number(o.paidAmount.val) / rate) : Number(o.paidAmount.val);
+    }
+
+    const isPaid = paidUSD >= revenueUSD;
+    const dateStr = o.archivedAt ? new Date(o.archivedAt).toLocaleDateString() : '-';
+    const route = o.route || (allDispatch[o.relDispatchId] ? allDispatch[o.relDispatchId].route || '-' : '-'); // 假设有route字段
+
+    return { revenueUSD, revenueZMW, paidUSD, isPaid, dateStr, route };
+}
+
+// 渲染表格和汇总
+function render(startD = '', endD = '', custF = '', keyF = '') {
+    tableBody.innerHTML = '';
+    summaryDiv.innerHTML = '';
+    if (Object.keys(allOrders).length === 0) {
+        tableBody.innerHTML = '<tr><td colspan="9" style="text-align:center;padding:40px;color:#999">正在同步云端数据...</td></tr>';
+        return;
+    }
+
+    let totalUSD = 0;
+    let totalPaidUSD = 0;
+    let filteredOrders = [];
+
+    Object.entries(allOrders).forEach(([id, o]) => {
+        const fin = computeFee(o);
+        const archDate = new Date(o.archivedAt);
+        const startDateObj = startD ? new Date(startD) : null;
+        const endDateObj = endD ? new Date(endD) : null;
+        const searchStr = `${o.orderId} ${fin.route}`.toLowerCase();
+
+        if ((!custF || o.customer === custF) &&
+            (!startDateObj || archDate >= startDateObj) &&
+            (!endDateObj || archDate <= endDateObj) &&
+            (!keyF || searchStr.includes(keyF.toLowerCase()))) {
+
+            filteredOrders.push({ id, o, fin });
+            totalUSD += fin.revenueUSD;
+            totalPaidUSD += fin.paidUSD;
+        }
+    });
+
+    filteredOrders.forEach(({ id, o, fin }) => {
+        const row = document.createElement('tr');
+        row.innerHTML = `
+            <td><b>${o.orderId || id}</b></td>
+            <td>${o.customer || '-'}</td>
+            <td>${fin.route}</td>
+            <td>${fin.dateStr}</td>
+            <td style="color:var(--accent); font-weight:bold">$${fin.revenueUSD.toFixed(2)}</td>
+            <td>K${fin.revenueZMW.toFixed(2)}</td>
+            <td><span class="badge ${fin.isPaid ? 'badge-paid' : 'badge-unpaid'}">${fin.isPaid ? '已付' : '未付'}</span></td>
+            <td>
+                <div class="extra-input-group">
+                    <input type="number" class="input-mini" id="pv-${id}" value="${o.paidAmount?.val || 0}">
+                    <select id="pu-${id}" style="font-size:10px">
+                        <option value="USD" ${o.paidAmount?.unit==='USD'?'selected':''}>$</option>
+                        <option value="ZMW" ${o.paidAmount?.unit==='ZMW'?'selected':''}>K</option>
+                    </select>
+                    <button class="btn-save" onclick="savePaid('${id}')">存</button>
+                </div>
+            </td>
+            <td><button class="btn-pdf" style="padding:4px 8px;font-size:10px" onclick="genSinglePdf('${id}')">PDF</button></td>
+        `;
+        tableBody.appendChild(row);
+    });
+
+    summaryDiv.innerHTML = `汇总: 总运费 $${totalUSD.toFixed(2)} (K${(totalUSD * Number(exRateIn.value)).toFixed(2)}), 已付 $${totalPaidUSD.toFixed(2)}, 未付 $${(totalUSD - totalPaidUSD).toFixed(2)}`;
+}
+
+// 保存支付金额
+window.savePaid = async (id) => {
+    const val = document.getElementById(`pv-${id}`).value;
+    const unit = document.getElementById(`pu-${id}`).value;
+    try {
+        await update(ref(db, `tms/completed_orders/${id}`), {
+            paidAmount: { val: Number(val), unit: unit }
+        });
+        alert("支付信息已更新");
+        render(document.getElementById('startDate').value, document.getElementById('endDate').value, customerSelect.value, document.getElementById('keyword').value);
+    } catch(e) { alert("失败: " + e.message); }
+};
+
+// 生成单个订单PDF
+window.genSinglePdf = async (id) => {
+    const o = allOrders[id];
+    if (!o) return alert("订单不存在");
+    const fin = computeFee(o);
+    await generatePdf([ { id, o, fin } ], o.customer, '单个订单');
+};
+
+// 生成客户PDF
+async function genPdfForCustomer() {
+    const cust = customerSelect.value;
+    if (!cust) return alert("请选择客户");
+    const startD = document.getElementById('startDate').value;
+    const endD = document.getElementById('endDate').value;
+    const keyF = document.getElementById('keyword').value;
+
+    let filtered = [];
+    Object.entries(allOrders).forEach(([id, o]) => {
+        const fin = computeFee(o);
+        const archDate = new Date(o.archivedAt);
+        const startDateObj = startD ? new Date(startD) : null;
+        const endDateObj = endD ? new Date(endD) : null;
+        const searchStr = `${o.orderId} ${fin.route}`.toLowerCase();
+
+        if (o.customer === cust &&
+            (!startDateObj || archDate >= startDateObj) &&
+            (!endDateObj || archDate <= endDateObj) &&
+            (!keyF || searchStr.includes(keyF.toLowerCase()))) {
+            filtered.push({ id, o, fin });
+        }
+    });
+
+    if (filtered.length === 0) return alert("无订单数据");
+    await generatePdf(filtered, cust, `${startD || '开始'} 至 ${endD || '现在'}`);
+}
+
+// PDF 生成函数
+async function generatePdf(orders, customer, period) {
+    const btn = genPdfBtn;
+    btn.innerText = "Generating...";
+    btn.disabled = true;
+
+    // 填充模板
+    document.getElementById('p_customer').innerText = customer;
+    document.getElementById('p_period').innerText = period;
+    document.getElementById('p_date').innerText = new Date().toLocaleString();
+    
+    const pTableBody = document.getElementById('p_tableBody');
+    pTableBody.innerHTML = '';
+    let totalUSD = 0;
+    orders.forEach(({ o, fin }) => {
+        totalUSD += fin.revenueUSD;
+        pTableBody.innerHTML += `<tr><td>${o.orderId}</td><td>${fin.route}</td><td>${fin.dateStr}</td><td>$${fin.revenueUSD.toFixed(2)}</td><td>${fin.isPaid ? 'Yes' : 'No'}</td></tr>`;
+    });
+    document.getElementById('p_total').innerText = `$${totalUSD.toFixed(2)}`;
+    document.getElementById('p_totalLine').innerText = `Total: $${totalUSD.toFixed(2)}`;
+
+    const target = document.getElementById('pdfTemplate');
+    target.style.left = "0";
+
+    try {
+        const canvas = await html2canvas(target, { scale: 2 });
+        const imgData = canvas.toDataURL('image/jpeg', 1.0);
+        const { jsPDF } = window.jspdf;
+        const pdf = new jsPDF('p', 'mm', 'a4');
+        pdf.addImage(imgData, 'JPEG', 0, 0, 210, 297);
+        pdf.save(`Invoice_${customer}_${Date.now()}.pdf`);
+    } catch (e) {
+        console.error(e);
+    } finally {
+        target.style.left = "-9999px";
+        btn.innerText = "生成PDF对账单";
+        btn.disabled = false;
+    }
+}
+
+// 监听数据
+onValue(ref(db, "tms/completed_orders"), (snapshot) => {
+    allOrders = snapshot.val() || {};
+    uniqueCustomers.clear();
+    Object.values(allOrders).forEach(o => {
+        if (o.customer) uniqueCustomers.add(o.customer);
+    });
+    customerSelect.innerHTML = '<option value="">所有客户</option>';
+    Array.from(uniqueCustomers).sort().forEach(c => {
+        customerSelect.innerHTML += `<option value="${c}">${c}</option>`;
+    });
+    render();
+});
+
+onValue(ref(db, "tms/dispatch"), (snapshot) => {
+    allDispatch = snapshot.val() || {};
+    render();
+});
+
+searchBtn.addEventListener('click', () => {
+    render(document.getElementById('startDate').value, document.getElementById('endDate').value, customerSelect.value, document.getElementById('keyword').value);
+});
+
+genPdfBtn.addEventListener('click', genPdfForCustomer);
+</script>
+</body>
+</html>

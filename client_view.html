@@ -1,0 +1,595 @@
+<!doctype html>
+<html lang="en">
+<head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no">
+    <title>Cargo Tracking</title>
+    <script src="https://cdn.sheetjs.com/xlsx-latest/package/dist/xlsx.full.min.js"></script>
+    <style>
+        :root { 
+            --primary: #1e63d8; 
+            --success: #27ae60; 
+            --warning: #ff9800;
+            --danger: #e74c3c;
+            --gray: #e0e0e0;
+            --text: #2c3e50;
+            --bg: #f4f6f9;
+            --card-bg: #ffffff;
+            --shadow: 0 4px 12px rgba(0,0,0,0.08);
+        }
+        body { 
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif; 
+            background: var(--bg); 
+            margin: 0; 
+            color: var(--text); 
+            padding-bottom: 60px; 
+            line-height: 1.5;
+        }
+        
+        .brand-header { 
+            background: #fff; 
+            padding: 20px; 
+            border-bottom: 1px solid #eee; 
+            position: sticky; 
+            top: 0; 
+            z-index: 99; 
+            box-shadow: 0 2px 10px rgba(0,0,0,0.05); 
+            display: flex; 
+            flex-direction: column; 
+            align-items: center;
+        }
+        .brand-logo { 
+            font-weight: 900; 
+            font-size: 24px; 
+            color: var(--primary); 
+            letter-spacing: -0.5px; 
+        }
+        .client-badge { 
+            font-size: 14px; 
+            color: #666; 
+            margin-top: 6px; 
+            display: block; 
+        }
+
+        .container { 
+            max-width: 1200px; 
+            margin: 0 auto; 
+            padding: 20px; 
+        }
+        
+        /* List for Cards */
+        .orders-list { 
+            display: flex; 
+            flex-direction: column; 
+            gap: 20px; 
+        }
+
+        /* Order Card */
+        .track-card { 
+            background: var(--card-bg); 
+            border-radius: 16px; 
+            padding: 20px; 
+            box-shadow: var(--shadow); 
+            border: 1px solid rgba(0,0,0,0.05); 
+            transition: transform 0.2s ease;
+        }
+        .track-card:hover { 
+            transform: translateY(-4px); 
+            box-shadow: 0 6px 16px rgba(0,0,0,0.12); 
+        }
+        .track-card.delayed { 
+            border-left: 4px solid var(--warning); 
+        }
+
+        /* Top Section: Plate & Route */
+        .card-top { 
+            display: flex; 
+            justify-content: space-between; 
+            align-items: flex-start; 
+            margin-bottom: 20px; 
+        }
+        .plate-no { 
+            font-size: 22px; 
+            font-weight: 800; 
+            color: #000; 
+            display: flex; 
+            align-items: center; 
+            gap: 10px; 
+        }
+        .truck-icon { 
+            background: #f0f4ff; 
+            padding: 8px; 
+            border-radius: 8px; 
+            font-size: 20px; 
+        }
+        .route-info { 
+            font-size: 14px; 
+            color: #666; 
+            margin-top: 8px; 
+            font-weight: 500; 
+        }
+        .status-badge { 
+            padding: 6px 12px; 
+            border-radius: 20px; 
+            font-size: 13px; 
+            font-weight: bold; 
+            background: #eee; 
+            color: #555; 
+        }
+        .status-badge.active { 
+            background: #e3f2fd; 
+            color: var(--primary); 
+        }
+        .status-badge.done { 
+            background: #e8f5e9; 
+            color: var(--success); 
+        }
+
+        /* Driver Info */
+        .driver-info {
+            font-size: 14px;
+            color: #666;
+            margin-top: 8px;
+            font-weight: 500;
+        }
+
+        /* Visual Progress Bar */
+        .progress-track { 
+            position: relative; 
+            padding: 0 15px; 
+            margin: 30px 0 15px 0; 
+            border-radius: 8px;
+            background: #fff;
+            box-shadow: inset 0 1px 3px rgba(0,0,0,0.05);
+        }
+        .progress-line-bg { 
+            position: absolute; 
+            top: 7px; 
+            left: 0; 
+            right: 0; 
+            height: 3px; 
+            background: var(--gray); 
+            border-radius: 3px; 
+            z-index: 1; 
+        }
+        .progress-line-fill { 
+            position: absolute; 
+            top: 7px; 
+            left: 0; 
+            height: 3px; 
+            background: linear-gradient(90deg, var(--success), var(--primary)); 
+            border-radius: 3px; 
+            z-index: 2; 
+            transition: width 0.5s ease; 
+            width: 0%; 
+        }
+        
+        .steps-container { 
+            position: relative; 
+            z-index: 3; 
+            display: flex; 
+            justify-content: space-between; 
+            flex-wrap: wrap; 
+            gap: 10px; 
+        }
+        .step-node { 
+            display: flex; 
+            flex-direction: column; 
+            align-items: center; 
+            flex: 1; 
+            min-width: 100px; 
+        }
+        .dot { 
+            width: 16px; 
+            height: 16px; 
+            border-radius: 50%; 
+            background: var(--gray); 
+            border: 3px solid #fff; 
+            box-shadow: 0 2px 5px rgba(0,0,0,0.1); 
+            transition: all 0.3s; 
+        }
+        .step-label { 
+            font-size: 12px; 
+            color: #999; 
+            margin-top: 8px; 
+            font-weight: 600; 
+            text-align: center; 
+        }
+        .step-time { 
+            font-size: 11px; 
+            color: #aaa; 
+            margin-top: 4px; 
+            text-align: center; 
+        }
+        
+        /* Active State Styles */
+        .step-node.active .dot { 
+            background: var(--primary); 
+            transform: scale(1.15); 
+            box-shadow: 0 0 0 5px rgba(30,99,216,0.2); 
+        }
+        .step-node.completed .dot { 
+            background: var(--success); 
+        }
+        .step-node.active .step-label, .step-node.completed .step-label { 
+            color: var(--primary); 
+        }
+        
+        /* Current Status Text Box */
+        .current-status-box { 
+            background: #f8faff; 
+            border-radius: 8px; 
+            padding: 15px; 
+            margin-top: 20px; 
+            text-align: center; 
+            border-left: 4px solid var(--primary); 
+            box-shadow: inset 0 1px 3px rgba(0,0,0,0.05);
+        }
+        .status-title { 
+            font-size: 12px; 
+            text-transform: uppercase; 
+            color: #888; 
+            font-weight: 700; 
+            letter-spacing: 1px; 
+        }
+        .status-main { 
+            font-size: 20px; 
+            color: var(--primary); 
+            font-weight: 800; 
+            margin-top: 5px; 
+        }
+        
+        /* Issue Alert */
+        .issue-alert {
+            margin-top: 15px; 
+            background: #fff3e0; 
+            color: var(--warning); 
+            padding: 12px; 
+            border-radius: 8px; 
+            font-size: 14px; 
+            font-weight: 600; 
+            display: flex; 
+            align-items: center; 
+            gap: 10px;
+            border-left: 4px solid var(--warning);
+        }
+
+        .empty-state { 
+            text-align: center; 
+            padding: 60px 20px; 
+            color: #999; 
+            font-size: 16px; 
+        }
+        .update-time { 
+            font-size: 12px; 
+            color: #aaa; 
+            text-align: right; 
+            margin-top: 15px; 
+            font-style: italic; 
+        }
+
+        .btn {
+            background: var(--primary);
+            color: white;
+            padding: 10px 20px;
+            border-radius: 8px;
+            border: none;
+            cursor: pointer;
+            font-weight: 600;
+            transition: background 0.3s;
+        }
+        .btn:hover {
+            background: #0042b3;
+        }
+
+        /* Media Queries for Desktop */
+        @media (min-width: 768px) {
+            .brand-header { 
+                flex-direction: row; 
+                justify-content: space-between; 
+                padding: 20px 40px; 
+            }
+            .brand-logo { 
+                font-size: 28px; 
+            }
+            .client-badge { 
+                margin-top: 0; 
+                font-size: 16px; 
+            }
+            .container { 
+                padding: 30px; 
+            }
+            .track-card { 
+                padding: 25px; 
+            }
+            .plate-no { 
+                font-size: 24px; 
+            }
+            .route-info { 
+                font-size: 15px; 
+            }
+            .driver-info {
+                font-size: 15px;
+            }
+            .step-label { 
+                font-size: 13px; 
+            }
+            .step-time {
+                font-size: 12px;
+            }
+            .status-main { 
+                font-size: 22px; 
+            }
+            .issue-alert { 
+                font-size: 15px; 
+            }
+            .update-time { 
+                font-size: 13px; 
+            }
+            .steps-container {
+                flex-wrap: nowrap;
+            }
+        }
+    </style>
+</head>
+<body>
+
+<div class="brand-header">
+    <div class="brand-logo">TMS TRACKING</div>
+    <span class="client-badge" id="clientNameHeader">Loading...</span>
+</div>
+
+<div class="container">
+    <div class="d-flex justify-content-end mb-3">
+        <button class="btn" id="exportBtn">Export to Excel</button>
+    </div>
+    <div id="ordersContainer" class="orders-list">
+        <div class="empty-state">Loading your shipments...</div>
+    </div>
+</div>
+
+<script type="module">
+import { initializeApp } from "https://www.gstatic.com/firebasejs/9.23.0/firebase-app.js";
+import { getDatabase, ref, onValue } from "https://www.gstatic.com/firebasejs/9.23.0/firebase-database.js";
+
+const firebaseConfig = {
+  apiKey: "AIzaSyDEbePpsrXwD8Okqa93UOGUFE37c8SFHS0",
+  authDomain: "cjsmartcargo-datebase.firebaseapp.com",
+  databaseURL: "https://cjsmartcargo-datebase-default-rtdb.firebaseio.com",
+  projectId: "cjsmartcargo-datebase",
+  storageBucket: "cjsmartcargo-datebase.firebasestorage.app",
+  messagingSenderId: "751451468006",
+  appId: "1:751451468006:web:a3cbd33cf3c2b29f624b27"
+};
+
+const app = initializeApp(firebaseConfig);
+const db = getDatabase(app);
+
+// State definitions matched to driver and monitor sides
+const STATES_BY_TYPE = {
+    cross_border: [
+        { key: 'confirmed', label: 'Heading to Pickup' },
+        { key: 'arrived_pickup', label: 'Loading in Progress' },
+        { key: 'loaded', label: 'Waiting for Docs' },
+        { key: 'documents_ready', label: 'Heading to Border' },
+        { key: 'arrived_border', label: 'Clearing Customs' },
+        { key: 'cleared_border', label: 'Crossing Border' },
+        { key: 'crossed_border', label: 'Heading to Dropoff' },
+        { key: 'arrived_dropoff', label: 'Unloading' },
+        { key: 'unloaded', label: 'Order Complete' },
+        { key: 'archived', label: 'Archived' }
+    ],
+    domestic: [
+        { key: 'confirmed', label: 'Heading to Pickup' },
+        { key: 'arrived_pickup', label: 'Loading in Progress' },
+        { key: 'loaded', label: 'Waiting for Release' },
+        { key: 'released', label: 'Heading to Dropoff' },
+        { key: 'arrived_dropoff', label: 'Unloading' },
+        { key: 'unloaded', label: 'Order Complete' },
+        { key: 'archived', label: 'Archived' }
+    ]
+};
+
+// 1. Get Client Name from URL
+const urlParams = new URLSearchParams(window.location.search);
+const clientName = urlParams.get('c');
+
+let myOrders = []; // Global variable to store orders for export
+
+if (!clientName) {
+    document.getElementById('clientNameHeader').innerText = "Invalid Link";
+    document.getElementById('ordersContainer').innerHTML = "<div class='empty-state'>Please use the link provided by your logistics manager.</div>";
+} else {
+    document.getElementById('clientNameHeader').innerText = "Prepared for: " + clientName;
+    loadClientOrders(clientName);
+}
+
+function loadClientOrders(targetClient) {
+    // Note: For best performance, Firebase rules should index "customer".
+    // Here we filter client-side for simplicity in this prototype.
+    onValue(ref(db, 'tms/orders'), (snapshot) => {
+        const container = document.getElementById('ordersContainer');
+        container.innerHTML = "";
+        
+        const data = snapshot.val();
+        if (!data) {
+            container.innerHTML = "<div class='empty-state'>No active shipments found.</div>";
+            return;
+        }
+
+        myOrders = Object.values(data).filter(o => 
+            o.customer && o.customer.trim().toLowerCase() === targetClient.trim().toLowerCase()
+        );
+
+        if (myOrders.length === 0) {
+            container.innerHTML = "<div class='empty-state'>No active shipments found for " + targetClient + ".</div>";
+            return;
+        }
+
+        // Render each order
+        myOrders.forEach(order => {
+            const card = createOrderCard(order);
+            container.appendChild(card);
+        });
+    });
+}
+
+function createOrderCard(order) {
+    const type = order.orderType || 'cross_border';
+    const states = STATES_BY_TYPE[type] || STATES_BY_TYPE.cross_border;
+    const currentStep = order.statusStep || 1;
+    
+    // Calculate Progress Percentage
+    const totalSteps = states.length;
+    let progressPct = ((currentStep - 1) / (totalSteps - 1)) * 100;
+    if (progressPct > 100) progressPct = 100;
+
+    // Determine Status Text
+    const statusText = currentStep <= states.length ? states[currentStep - 1].label : "Completed";
+
+    // Build Step Nodes HTML
+    let nodesHtml = "";
+    states.forEach((state, index) => {
+        const stepIndex = index + 1;
+        let nodeClass = "";
+        let timeText = "";
+        if (stepIndex < currentStep) {
+            nodeClass = "completed";
+            const ts = order.statusTimestamps && order.statusTimestamps[state.key];
+            timeText = ts && ts.end ? new Date(ts.end).toLocaleString() : "--";
+        } else if (stepIndex === currentStep) {
+            nodeClass = "active";
+        }
+        
+        nodesHtml += `
+            <div class="step-node ${nodeClass}">
+                <div class="dot"></div>
+                <div class="step-label">${state.label}</div>
+                <div class="step-time">${timeText ? `Completed: ${timeText}` : ''}</div>
+            </div>
+        `;
+    });
+
+    const div = document.createElement('div');
+    div.className = `track-card ${order.hasActiveIssue ? 'delayed' : ''}`;
+    
+    div.innerHTML = `
+        <div class="card-top">
+            <div>
+                <div class="plate-no">
+                    <span class="truck-icon">🚛</span> 
+                    ${order.tractor || 'N/A'}
+                    <span class="status-badge ${currentStep >= totalSteps ? 'done' : 'active'}">
+                        ${type === 'cross_border' ? 'INTL' : 'DOM'}
+                    </span>
+                </div>
+                <div class="route-info">
+                    ${order.pickupAddr ? order.pickupAddr.split(',')[0] : 'Origin'} 
+                    ➝ 
+                    ${order.dropoffAddr ? order.dropoffAddr.split(',')[0] : 'Dest'}
+                </div>
+                <div class="driver-info">
+                    Driver: ${order.driver || 'N/A'} | Phone: ${order.driverPhone || 'N/A'}
+                </div>
+            </div>
+        </div>
+
+        <div class="progress-track">
+            <div class="progress-line-bg"></div>
+            <div class="progress-line-fill" style="width: ${progressPct}%"></div>
+            <div class="steps-container">
+                ${nodesHtml}
+            </div>
+        </div>
+
+        <div class="current-status-box">
+            <div class="status-title">Current Status</div>
+            <div class="status-main">${statusText}</div>
+        </div>
+        
+        ${order.hasActiveIssue ? `
+        <div class="issue-alert">
+            <span>⚠️</span> Exception Reported. Please contact dispatch.
+        </div>` : ''}
+
+        <div class="update-time">
+             Last Update: ${new Date().toLocaleTimeString()}
+        </div>
+    `;
+    return div;
+}
+
+function exportToExcel() {
+    if (myOrders.length === 0) {
+        alert("No data to export.");
+        return;
+    }
+
+    const wb = XLSX.utils.book_new();
+
+    // Header rows with merged cells simulation
+    const ws_data = [
+        ["No.", "TRUCK NO.", "HORSE", "TRAILER NO.", "DRIVER NAME", "Phone", "MT on export", "STATUS", "HWANGE Loaded", "Dep", "VICFALLS ARR", "DEP", "LIVINGSTONE ARR", "DEP", "CHAMBESHI ARR", "DEP", "OFFLOADED", "备注"]
+    ];
+
+    myOrders.forEach((order, index) => {
+        const type = order.orderType || 'cross_border';
+        const states = STATES_BY_TYPE[type] || STATES_BY_TYPE.cross_border;
+        const currentStep = order.statusStep || 1;
+        const statusText = currentStep <= states.length ? states[currentStep - 1].label : "Completed";
+        const ts = order.statusTimestamps || {};
+
+        // Map states to columns (approximate mapping based on typical flow)
+        const hwangeLoaded = ts.loaded ? new Date(ts.loaded.end).toLocaleString() : '';
+        const hwangeDep = ts.documents_ready ? new Date(ts.documents_ready.end).toLocaleString() : '';
+        const vicfallsArr = ts.arrived_border ? new Date(ts.arrived_border.end).toLocaleString() : '';
+        const vicfallsDep = ts.cleared_border ? new Date(ts.cleared_border.end).toLocaleString() : '';
+        const livingstoneArr = ts.crossed_border ? new Date(ts.crossed_border.end).toLocaleString() : '';
+        const livingstoneDep = ts.crossed_border ? new Date(ts.crossed_border.end).toLocaleString() : ''; // Approximate
+        const chambeshiArr = ts.arrived_dropoff ? new Date(ts.arrived_dropoff.end).toLocaleString() : '';
+        const chambeshiDep = ts.arrived_dropoff ? new Date(ts.arrived_dropoff.end).toLocaleString() : ''; // Approximate
+        const offloaded = ts.unloaded ? new Date(ts.unloaded.end).toLocaleString() : '';
+
+        const row = [
+            index + 1,
+            '', // TRUCK NO. (empty as per image)
+            order.tractor || '', // HORSE
+            order.trailer || '', // TRAILER NO. (assuming order has trailer field; if not, empty)
+            order.driver || '',
+            order.driverPhone || '',
+            order.weight || '30t', // Default to 30t as per image
+            statusText,
+            hwangeLoaded,
+            hwangeDep,
+            vicfallsArr,
+            vicfallsDep,
+            livingstoneArr,
+            livingstoneDep,
+            chambeshiArr,
+            chambeshiDep,
+            offloaded,
+            '' // 备注 (empty)
+        ];
+
+        ws_data.push(row);
+    });
+
+    const ws = XLSX.utils.aoa_to_sheet(ws_data);
+
+    // Add merges for location headers (simulate multi-level)
+    ws['!merges'] = [
+        {s: {r: 0, c: 8}, e: {r: 0, c: 9}}, // HWANGE over Loaded and Dep
+        {s: {r: 0, c: 10}, e: {r: 0, c: 11}}, // VICFALLS over ARR and DEP
+        {s: {r: 0, c: 12}, e: {r: 0, c: 13}}, // LIVINGSTONE over ARR and DEP
+        {s: {r: 0, c: 14}, e: {r: 0, c: 15}} // CHAMBESHI over ARR and DEP
+    ];
+
+    XLSX.utils.book_append_sheet(wb, ws, "Fleet Report");
+
+    XLSX.writeFile(wb, `Fleet_Report_${new Date().toISOString().split('T')[0]}.xlsx`);
+}
+
+document.getElementById('exportBtn').addEventListener('click', exportToExcel);
+</script>
+</body>
+</html>

@@ -1,0 +1,621 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="utf-8">
+    <title>车队财务管理系统 - 优化版</title>
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/css/bootstrap.min.css">
+    <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-app-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-database-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-auth-compat.js"></script>
+    <style>
+        body { background: #f8f9fa; font-family: 'Segoe UI', Arial, sans-serif; font-size: 14px; color: #333; } /* 增大整体字号 */
+        .card { border: none; border-radius: 12px; box-shadow: 0 4px 15px rgba(0,0,0,0.08); } /* 增强阴影，使更专业 */
+        /* 顶部余额看板 */
+        .balance-card { background: linear-gradient(135deg, #1e63d8, #0042b3); color: white; padding: 20px; border-radius: 12px; height: 100%; } /* 增大padding */
+        .balance-title { font-size: 0.9rem; opacity: 0.8; }
+        .balance-val { font-size: 1.6rem; font-weight: bold; margin-bottom: 8px; } /* 增大余额字体 */
+        .balance-sub { font-size: 0.8rem; border-top: 1px solid rgba(255,255,255,0.2); padding-top: 8px; }
+
+        /* UI 浅色调按钮 */
+        .btn-ui-light { background-color: #f0f4f8; border: 1px solid #d1d9e6; color: #4a5568; }
+        .btn-ui-light:hover { background-color: #e2e8f0; }
+        .btn-primary-soft { background-color: #e0eaff; color: #1e63d8; border: none; }
+        .btn-primary-soft:hover { background-color: #c7d2fe; }
+        
+        /* 列表区域 */
+        .scroll-area { max-height: 480px; overflow-y: auto; }
+        .table th { font-weight: 600; color: #718096; background: #fcfcfd; border-bottom: 2px solid #edf2f7; font-size: 0.9rem; } /* 调整表头字号 */
+        .table td { font-size: 0.85rem; vertical-align: middle; } /* 调整表格内容字号 */
+        
+        /* 状态标签 */
+        .badge-pending { background-color: #fff3cd; color: #856404; }
+        .badge-done { background-color: #d1e7dd; color: #0f5132; }
+
+        .lang-switch { position: fixed; top: 15px; right: 20px; z-index: 1050; }
+        .vehicle-tag-box { border: 1px solid #dee2e6; padding: 10px; border-radius: 6px; max-height: 120px; overflow-y: auto; background: #fff; }
+
+        /* 新增删除按钮样式 */
+        .btn-delete { font-size: 0.75rem; padding: 2px 6px; } /* 小型删除按钮 */
+    </style>
+</head>
+<body>
+
+<div class="lang-switch">
+    <button class="btn btn-sm btn-ui-light" onclick="toggleLang()" id="langBtn">English</button>
+</div>
+
+<div class="container-fluid p-4">
+    <div class="d-flex justify-content-between align-items-center mb-4">
+        <div>
+            <h4 class="fw-bold m-0" id="t-main-title">车队财务与票据管理系统</h4>
+            <a href="index.html" class="btn btn-sm btn-link p-0 mt-1" id="t-back">返回主页</a>
+        </div>
+        <div class="d-flex gap-2">
+            <button class="btn btn-primary-soft px-4" data-bs-toggle="modal" data-bs-target="#rechargeModal" id="t-btn-recharge">充值</button>
+            <button class="btn btn-ui-light px-4" data-bs-toggle="modal" data-bs-target="#spendModal" id="t-btn-spend">费用录入</button>
+            <button class="btn btn-ui-light" onclick="exportExcel()" id="t-btn-export">导出全部数据</button>
+        </div>
+    </div>
+
+    <div class="row g-3 mb-4">
+        <div class="col-md-6">
+            <div class="balance-card">
+                <div class="balance-title" id="t-bal-zmw-title">克瓦查账户 (ZMW)</div>
+                <div class="balance-val" id="balZMW">0.00</div>
+                <div class="row balance-sub">
+                    <div class="col-4 border-end border-white border-opacity-10">
+                        <span id="t-sub-rec">累计充值:</span> <span id="stat-zmw-rec">0</span>
+                    </div>
+                    <div class="col-4 border-end border-white border-opacity-10">
+                        <span id="t-sub-spd">待回收支出:</span> <span id="stat-zmw-spd">0</span>
+                    </div>
+                    <div class="col-4">
+                        <span id="t-sub-inv">已入账票据:</span> <span id="stat-zmw-inv">0</span>
+                    </div>
+                </div>
+            </div>
+        </div>
+        <div class="col-md-6">
+            <div class="balance-card" style="background: linear-gradient(135deg, #0d9488, #0f766e);">
+                <div class="balance-title" id="t-bal-usd-title">美金账户 (USD)</div>
+                <div class="balance-val" id="balUSD">0.00</div>
+                <div class="row balance-sub">
+                    <div class="col-6 border-end border-white border-opacity-10">
+                        <span id="t-sub-rec2">累计充值:</span> <span id="stat-usd-rec">0</span>
+                    </div>
+                    <div class="col-6">
+                        <span id="t-sub-spd2">累计支出 (仅记账):</span> <span id="stat-usd-spd">0</span>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <div class="card p-3 mb-4">
+        <div class="row g-2 align-items-end">
+            <div class="col-md-2">
+                <label class="small text-muted" id="t-f-date">日期筛选</label>
+                <input type="date" id="filterDate" class="form-control form-control-sm shadow-none">
+            </div>
+            <div class="col-md-2">
+                <label class="small text-muted" id="t-f-plate">车牌检索</label>
+                <input type="text" id="filterPlate" class="form-control form-control-sm shadow-none" placeholder="...">
+            </div>
+            <div class="col-md-2">
+                <label class="small text-muted" id="t-f-user">申请人</label>
+                <input type="text" id="filterUser" class="form-control form-control-sm shadow-none">
+            </div>
+            <div class="col-md-3">
+                <label class="small text-muted" id="t-f-reason">事由关键字搜索</label>
+                <input type="text" id="filterReason" class="form-control form-control-sm shadow-none">
+            </div>
+            <div class="col-md-3 d-flex gap-2">
+                <button class="btn btn-sm btn-primary-soft w-100" onclick="applyFilters()" id="t-btn-filter">应用筛选</button>
+                <button class="btn btn-sm btn-ui-light w-100" onclick="resetFilters()" id="t-btn-reset">重置</button>
+            </div>
+        </div>
+    </div>
+
+    <div class="card">
+        <div class="card-header bg-white">
+            <ul class="nav nav-tabs card-header-tabs small" id="mainTab">
+                <li class="nav-item"><button class="nav-link active" data-bs-toggle="tab" data-bs-target="#tab-pending" id="t-tab-pending">待回收支出 (ZMW)</button></li>
+                <li class="nav-item"><button class="nav-link" data-bs-toggle="tab" data-bs-target="#tab-done" id="t-tab-done">已入账明细 (ZMW)</button></li>
+                <li class="nav-item"><button class="nav-link" data-bs-toggle="tab" data-bs-target="#tab-usd" id="t-tab-usd">美金支出 (USD)</button></li>
+                <li class="nav-item"><button class="nav-link text-primary fw-bold" data-bs-toggle="tab" data-bs-target="#tab-recharge" id="t-tab-recharge">充值历史记录</button></li>
+            </ul>
+        </div>
+        <div class="card-body p-0 tab-content scroll-area">
+            <div class="tab-pane fade show active" id="tab-pending">
+                <div class="p-2 bg-light border-bottom d-flex justify-content-between align-items-center">
+                    <span class="small text-muted">勾选后点击确认入账以回收票据</span>
+                    <button class="btn btn-sm btn-success py-1" onclick="batchInvoice()" id="t-btn-batch">确认入账</button>
+                </div>
+                <table class="table table-sm table-hover mb-0">
+                    <thead><tr><th><input type="checkbox" id="selectAll"></th><th id="t-h-date">日期</th><th id="t-h-user">申请人</th><th id="t-h-plate">车牌</th><th id="t-h-reason">事由</th><th id="t-h-amt">金额 (ZMW)</th><th>操作</th></tr></thead>
+                    <tbody id="pendingTbody"></tbody>
+                </table>
+            </div>
+            <div class="tab-pane fade" id="tab-done">
+                <table class="table table-sm table-hover">
+                    <thead><tr><th id="t-h-date2">日期</th><th id="t-h-user2">申请人</th><th id="t-h-plate2">车牌</th><th id="t-h-reason2">事由</th><th id="t-h-amt2">金额 (ZMW)</th><th>操作</th></tr></thead>
+                    <tbody id="doneTbody"></tbody>
+                </table>
+            </div>
+            <div class="tab-pane fade" id="tab-usd">
+                <table class="table table-sm table-hover">
+                    <thead><tr><th id="t-h-date3">日期</th><th id="t-h-user3">申请人</th><th id="t-h-plate3">车牌</th><th id="t-h-reason3">事由</th><th id="t-h-amt3">金额 (USD)</th><th>操作</th></tr></thead>
+                    <tbody id="usdTbody"></tbody>
+                </table>
+            </div>
+            <div class="tab-pane fade" id="tab-recharge">
+                <table class="table table-sm table-hover">
+                    <thead class="table-info"><tr><th id="t-h-date4">日期</th><th id="t-h-curr">币种</th><th id="t-h-amt4">充值金额</th><th id="t-h-note">备注</th><th>操作</th></tr></thead>
+                    <tbody id="rechargeTbody"></tbody>
+                </table>
+            </div>
+        </div>
+    </div>
+</div>
+
+<div class="modal fade" id="rechargeModal" tabindex="-1">
+    <div class="modal-dialog modal-sm">
+        <div class="modal-content p-3 border-0">
+            <h6 class="fw-bold mb-3" id="t-m-title-rec">资金账户充值</h6>
+            <label class="small text-muted">选择币种</label>
+            <select id="recCurrency" class="form-select mb-2 shadow-none"><option>ZMW</option><option>USD</option></select>
+            <label class="small text-muted">充值金额</label>
+            <input type="number" id="recAmount" class="form-control mb-3 shadow-none" placeholder="0.00">
+            <label class="small text-muted">备注 (可选)</label>
+            <input type="text" id="recNote" class="form-control mb-3 shadow-none">
+            <button class="btn btn-primary w-100" onclick="handleRecharge()" id="t-m-rec-btn">确认充值</button>
+        </div>
+    </div>
+</div>
+
+<div class="modal fade" id="spendModal" tabindex="-1">
+    <div class="modal-dialog">
+        <div class="modal-content border-0">
+            <div class="modal-header border-0"><h6 class="fw-bold m-0" id="t-m-title-spend">录入费用支出明细</h6></div>
+            <div class="modal-body pt-0">
+                <div class="row g-2 mb-3">
+                    <div class="col-6">
+                        <label class="small text-muted" id="t-m-curr">币种</label>
+                        <select id="spdCurrency" class="form-select shadow-none"><option>ZMW</option><option>USD</option></select>
+                    </div>
+                    <div class="col-6">
+                        <label class="small text-muted" id="t-m-amt">金额 (单笔/单车)</label>
+                        <input type="number" id="spdAmount" class="form-control shadow-none">
+                    </div>
+                </div>
+                <div class="mb-3">
+                    <label class="small text-muted d-flex justify-content-between">
+                        <span id="t-m-plate">选择车牌 (不选则默认为非车辆支出)</span>
+                        <a href="javascript:void(0)" onclick="clearCheckPlates()" style="text-decoration:none;font-size:11px">清除选择</a>
+                    </label>
+                    <div id="vehicleList" class="vehicle-tag-box">加载车辆列表...</div>
+                </div>
+                <div class="row g-2">
+                    <div class="col-6">
+                        <label class="small text-muted" id="t-m-user">申请人</label>
+                        <input type="text" id="spdUser" class="form-control shadow-none">
+                    </div>
+                    <div class="col-6">
+                        <label class="small text-muted" id="t-m-reason">支出事由</label>
+                        <input type="text" id="spdReason" class="form-control shadow-none">
+                    </div>
+                </div>
+            </div>
+            <div class="modal-footer border-0">
+                <button class="btn btn-ui-light w-100 fw-bold" onclick="handleBulkSpend()" id="t-m-save">确认支出并记账</button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- 新增登录模态 -->
+<div class="modal fade" id="loginModal" tabindex="-1" data-bs-backdrop="static">
+    <div class="modal-dialog modal-sm">
+        <div class="modal-content p-3 border-0">
+            <h6 class="fw-bold mb-3">用户登录</h6>
+            <label class="small text-muted">用户名</label>
+            <input type="text" id="loginUsername" class="form-control mb-3 shadow-none">
+            <label class="small text-muted">密码</label>
+            <input type="password" id="loginPassword" class="form-control mb-3 shadow-none">
+            <button class="btn btn-primary w-100" onclick="handleLogin()">登录</button>
+        </div>
+    </div>
+</div>
+
+<!-- 新增充值详情模态 -->
+<div class="modal fade" id="rechargeDetailModal" tabindex="-1">
+    <div class="modal-dialog modal-lg">
+        <div class="modal-content border-0">
+            <div class="modal-header border-0"><h6 class="fw-bold m-0">充值消费详情</h6></div>
+            <div class="modal-body pt-0">
+                <div id="detailSummary" class="mb-3"></div>
+                <table class="table table-sm table-hover">
+                    <thead><tr><th>日期</th><th>申请人</th><th>车牌</th><th>事由</th><th>金额 (ZMW)</th><th>状态</th></tr></thead>
+                    <tbody id="detailTbody"></tbody>
+                </table>
+            </div>
+            <div class="modal-footer border-0">
+                <button class="btn btn-ui-light" data-bs-dismiss="modal">关闭</button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<script>
+// --- 初始化 Firebase ---
+const firebaseConfig = {
+    apiKey: "AIzaSyDEbePpsrXwD8Okqa93UOGUFE37c8SFHS0",
+    authDomain: "cjsmartcargo-datebase.firebaseapp.com",
+    databaseURL: "https://cjsmartcargo-datebase-default-rtdb.firebaseio.com",
+    projectId: "cjsmartcargo-datebase"
+};
+firebase.initializeApp(firebaseConfig);
+const db = firebase.database();
+const auth = firebase.auth();
+
+// --- 权限变量 ---
+let isAdmin = false;
+
+// --- 登录处理 ---
+function handleLogin() {
+    const username = document.getElementById('loginUsername').value;
+    const password = document.getElementById('loginPassword').value;
+    
+    let email = '';
+    if (username === 'cjsmartcargo' && password === 'smart2026') {
+        email = 'user@cjsmartcargo.com';
+        isAdmin = false;
+    } else if (username === 'uki202797' && password === 'zxcvbnm') {
+        email = 'admin@cjsmartcargo.com';
+        isAdmin = true;
+    } else {
+        alert('用户名或密码错误');
+        return;
+    }
+    
+    // 使用Firebase Auth模拟登录（假设已配置用户）
+    auth.signInWithEmailAndPassword(email, password).catch(() => {
+        // 如果用户不存在，创建（仅开发用，生产中预创建用户）
+        auth.createUserWithEmailAndPassword(email, password);
+    }).then(() => {
+        bootstrap.Modal.getInstance(document.getElementById('loginModal')).hide();
+        applyFilters(); // 刷新数据
+    }).catch(err => alert('登录失败: ' + err.message));
+}
+
+// 页面加载时显示登录模态
+window.onload = () => {
+    auth.onAuthStateChanged(user => {
+        if (!user) {
+            const loginModal = new bootstrap.Modal(document.getElementById('loginModal'));
+            loginModal.show();
+            setTimeout(() => {
+                const backdrop = document.querySelector('.modal-backdrop');
+                if (backdrop) {
+                    backdrop.style.backgroundColor = 'white';
+                    backdrop.style.opacity = '1';
+                }
+            }, 0);
+        } else {
+            // 根据email设置isAdmin（假设admin email为admin@）
+            isAdmin = user.email === 'admin@cjsmartcargo.com';
+            applyFilters();
+        }
+    });
+    applyLangUI();
+};
+
+// --- 语言包 ---
+let lang = 'zh';
+const i18n = {
+    zh: {
+        'main-title': '车队财务与票据管理系统', 'back': '返回主页', 'btn-recharge': '充值', 'btn-spend': '费用录入', 'btn-export': '导出全部数据',
+        'bal-zmw-title': '克瓦查账户 (ZMW)', 'bal-usd-title': '美金账户 (USD)', 'sub-rec': '累计充值:', 'sub-spd': '待回收支出:', 'sub-inv': '已入账票据:', 'sub-rec2': '累计充值:', 'sub-spd2': '累计支出:',
+        'f-date': '日期筛选', 'f-plate': '车牌检索', 'f-user': '申请人', 'f-reason': '事由关键字搜索', 'btn-filter': '应用筛选', 'btn-reset': '重置',
+        'tab-pending': '待回收支出 (ZMW)', 'tab-done': '已入账明细 (ZMW)', 'tab-usd': '美金支出 (USD)', 'tab-recharge': '充值历史记录',
+        'btn-batch': '确认入账', 'h-date': '日期', 'h-date2': '日期', 'h-date3': '日期', 'h-date4': '日期', 'h-plate': '车牌', 'h-plate2': '车牌', 'h-plate3': '车牌', 'h-user': '申请人', 'h-user2': '申请人', 'h-user3': '申请人', 'h-reason': '事由', 'h-reason2': '事由', 'h-reason3': '事由', 'h-amt': '金额 (ZMW)', 'h-amt2': '金额 (ZMW)', 'h-amt3': '金额 (USD)', 'h-amt4': '充值金额', 'h-curr': '币种', 'h-note': '备注',
+        'm-title-rec': '资金账户充值', 'm-rec-btn': '确认充值', 'm-title-spend': '录入费用支出明细', 'm-curr': '币种', 'm-amt': '金额 (单笔/单车)', 'm-plate': '选择车牌 (不选则默认为非车辆支出)', 'm-user': '申请人', 'm-reason': '支出事由', 'm-save': '确认支出并记账'
+    },
+    en: {
+        'main-title': 'Fleet Finance Management', 'back': 'Back', 'btn-recharge': 'Recharge', 'btn-spend': 'Add Expense', 'btn-export': 'Export Data',
+        'bal-zmw-title': 'ZMW Account', 'bal-usd-title': 'USD Account', 'sub-rec': 'Total Rec:', 'sub-spd': 'Pending:', 'sub-inv': 'Invoiced:', 'sub-rec2': 'Total Rec:', 'sub-spd2': 'Total Spent:',
+        'f-date': 'Date', 'f-plate': 'Plate No.', 'f-user': 'User', 'f-reason': 'Keyword Search', 'btn-filter': 'Apply', 'btn-reset': 'Reset',
+        'tab-pending': 'Pending (ZMW)', 'tab-done': 'Invoiced (ZMW)', 'tab-usd': 'Spent (USD)', 'tab-recharge': 'Recharge History',
+        'btn-batch': 'Invoice', 'h-date': 'Date', 'h-date2': 'Date', 'h-date3': 'Date', 'h-date4': 'Date', 'h-plate': 'Plate', 'h-plate2': 'Plate', 'h-plate3': 'Plate', 'h-user': 'User', 'h-user2': 'User', 'h-user3': 'User', 'h-reason': 'Reason', 'h-reason2': 'Reason', 'h-reason3': 'Reason', 'h-amt': 'Amt(ZMW)', 'h-amt2': 'Amt(ZMW)', 'h-amt3': 'Amt(USD)', 'h-amt4': 'Amount', 'h-curr': 'Currency', 'h-note': 'Note',
+        'm-title-rec': 'Account Recharge', 'm-rec-btn': 'Recharge', 'm-title-spend': 'Expense Entry', 'm-curr': 'Curr', 'm-amt': 'Amount (each)', 'm-plate': 'Select Vehicle (Optional for office cost)', 'm-user': 'Applicant', 'm-reason': 'Reason', 'm-save': 'Confirm & Save'
+    }
+};
+
+function toggleLang() {
+    lang = lang === 'zh' ? 'en' : 'zh';
+    document.getElementById('langBtn').innerText = lang === 'zh' ? 'English' : '中文';
+    applyLangUI();
+}
+
+function applyLangUI() {
+    const pack = i18n[lang];
+    Object.keys(pack).forEach(id => {
+        const el = document.getElementById('t-' + id);
+        if(el) el.innerText = pack[id];
+    });
+}
+
+// --- 数据处理 ---
+let allLogs = [];
+let allVehicles = [];
+
+// 获取车辆档案
+db.ref("tms/vehicles").on("value", snap => {
+    const data = snap.val() || {};
+    allVehicles = Object.values(data).map(v => v.head || v.truckHead).filter(v => v);
+    renderVehicleList();
+});
+
+function renderVehicleList() {
+    const container = document.getElementById("vehicleList");
+    container.innerHTML = allVehicles.map(plate => `
+        <div class="form-check form-check-inline m-1">
+            <input class="form-check-input spd-plates shadow-none" type="checkbox" value="${plate}" id="chk_${plate}">
+            <label class="form-check-label small" for="chk_${plate}">${plate}</label>
+        </div>
+    `).join("");
+}
+
+function clearCheckPlates() {
+    document.querySelectorAll('.spd-plates').forEach(cb => cb.checked = false);
+}
+
+// 批量支出与单笔处理
+function handleBulkSpend() {
+    const currency = document.getElementById('spdCurrency').value;
+    const amount = parseFloat(document.getElementById('spdAmount').value);
+    const selectedPlates = Array.from(document.querySelectorAll('.spd-plates:checked')).map(cb => cb.value);
+    const user = document.getElementById('spdUser').value;
+    const reason = document.getElementById('spdReason').value;
+
+    if(!amount) return alert("请输入金额");
+
+    const batch = {};
+    // 如果没有选车牌，则默认为一条“非车辆/办公室”记录
+    const platesToProcess = selectedPlates.length > 0 ? selectedPlates : ["OFFICE/OTHER"];
+
+    platesToProcess.forEach(plate => {
+        const newKey = db.ref().child('tms/fleetFinance/logs').push().key;
+        batch[newKey] = {
+            type: 'spend',
+            currency: currency,
+            amount: amount,
+            plate: plate,
+            user: user,
+            reason: reason,
+            status: currency === 'USD' ? 'fixed' : 'pending',
+            createdAt: Date.now()
+        };
+    });
+
+    db.ref("tms/fleetFinance/logs").update(batch).then(() => {
+        bootstrap.Modal.getInstance(document.getElementById('spendModal')).hide();
+        document.getElementById('spdAmount').value = '';
+        clearCheckPlates();
+    });
+}
+
+function handleRecharge() {
+    const amt = parseFloat(document.getElementById('recAmount').value);
+    const curr = document.getElementById('recCurrency').value;
+    const note = document.getElementById('recNote').value;
+    if(!amt) return;
+    db.ref("tms/fleetFinance/logs").push({
+        type: 'recharge', currency: curr, amount: amt, note: note, createdAt: Date.now()
+    });
+    bootstrap.Modal.getInstance(document.getElementById('rechargeModal')).hide();
+    document.getElementById('recAmount').value = '';
+}
+
+// 监听财务日志
+db.ref("tms/fleetFinance/logs").on("value", snap => {
+    allLogs = [];
+    const data = snap.val() || {};
+    Object.keys(data).forEach(k => allLogs.push({ ...data[k], key: k }));
+    applyFilters();
+});
+
+function applyFilters() {
+    const fDate = document.getElementById('filterDate').value;
+    const fPlate = document.getElementById('filterPlate').value.toUpperCase();
+    const fUser = document.getElementById('filterUser').value;
+    const fReason = document.getElementById('filterReason').value;
+
+    const filtered = allLogs.filter(log => {
+        const logDate = new Date(log.createdAt).toISOString().split('T')[0];
+        if (fDate && logDate !== fDate) return false;
+        if (fPlate && !log.plate?.toUpperCase().includes(fPlate)) return false;
+        if (fUser && !log.user?.includes(fUser)) return false;
+        if (fReason && !log.reason?.includes(fReason)) return false;
+        return true;
+    });
+
+    renderTables(filtered);
+}
+
+function renderTables(data) {
+    const usdTbody = document.getElementById('usdTbody');
+    const pendingTbody = document.getElementById('pendingTbody');
+    const doneTbody = document.getElementById('doneTbody');
+    const rechargeTbody = document.getElementById('rechargeTbody');
+    
+    usdTbody.innerHTML = ""; pendingTbody.innerHTML = ""; doneTbody.innerHTML = ""; rechargeTbody.innerHTML = "";
+
+    // 统计变量
+    let rZMW = 0, sZMW_pending = 0, sZMW_done = 0;
+    let rUSD = 0, sUSD = 0;
+
+    // 排序所有日志
+    const sortedLogs = data.sort((a,b) => b.createdAt - a.createdAt);
+
+    // 提取ZMW充值列表，按时间升序
+    const zmwRecharges = allLogs.filter(log => log.type === 'recharge' && log.currency === 'ZMW').sort((a,b) => a.createdAt - b.createdAt);
+
+    sortedLogs.forEach(log => {
+        const dStr = new Date(log.createdAt).toLocaleDateString();
+        
+        if (log.type === 'recharge') {
+            if(log.currency === 'USD') rUSD += log.amount; else rZMW += log.amount;
+            let ops = '';
+            if (isAdmin) {
+                ops += `<button class="btn btn-danger btn-delete" onclick="deleteLog('${log.key}', '${log.type}', '${log.currency}', ${log.amount})">删除</button>`;
+            }
+            if (log.currency === 'ZMW') {
+                ops += ` <button class="btn btn-info btn-delete" onclick="showRechargeDetail('${log.key}')">详情</button>`;
+            }
+            rechargeTbody.innerHTML += `<tr><td>${dStr}</td><td>${log.currency}</td><td>${log.amount.toFixed(2)}</td><td>${log.note || '-'}</td><td>${ops}</td></tr>`;
+        } else if (log.currency === 'USD') {
+            sUSD += log.amount;
+            let ops = '';
+            if (isAdmin) {
+                ops = `<button class="btn btn-danger btn-delete" onclick="deleteLog('${log.key}', '${log.type}', '${log.currency}', ${log.amount})">删除</button>`;
+            }
+            usdTbody.innerHTML += `<tr><td>${dStr}</td><td>${log.user || '-'}</td><td>${log.plate}</td><td>${log.reason}</td><td>${log.amount.toFixed(2)}</td><td>${ops}</td></tr>`;
+        } else {
+            // ZMW 处理
+            let ops = '';
+            if (isAdmin) {
+                ops = `<button class="btn btn-danger btn-delete" onclick="deleteLog('${log.key}', '${log.type}', '${log.currency}', ${log.amount})">删除</button>`;
+            }
+            if (log.status === 'pending') {
+                sZMW_pending += log.amount;
+                pendingTbody.innerHTML += `<tr>
+                    <td><input type="checkbox" class="item-check" data-key="${log.key}"></td>
+                    <td>${dStr}</td><td>${log.user}</td><td>${log.plate}</td><td>${log.reason}</td><td>${log.amount}</td>
+                    <td>${ops}</td>
+                </tr>`;
+            } else {
+                sZMW_done += log.amount;
+                if (isAdmin) {
+                    ops += ` <button class="btn btn-warning btn-delete" onclick="revertLog('${log.key}')">回退</button>`;
+                }
+                doneTbody.innerHTML += `<tr><td>${dStr}</td><td>${log.user || '-'}</td><td>${log.plate}</td><td>${log.reason}</td><td>${log.amount}</td><td>${ops}</td></tr>`;
+            }
+        }
+    });
+
+    // 余额看板更新
+    document.getElementById('balZMW').innerText = (rZMW - sZMW_pending - sZMW_done).toFixed(2);
+    document.getElementById('stat-zmw-rec').innerText = rZMW.toFixed(0);
+    document.getElementById('stat-zmw-spd').innerText = sZMW_pending.toFixed(0);
+    document.getElementById('stat-zmw-inv').innerText = sZMW_done.toFixed(0);
+
+    document.getElementById('balUSD').innerText = (rUSD - sUSD).toFixed(2);
+    document.getElementById('stat-usd-rec').innerText = rUSD.toFixed(0);
+    document.getElementById('stat-usd-spd').innerText = sUSD.toFixed(0);
+
+    applyLangUI();
+}
+
+function batchInvoice() {
+    const selected = document.querySelectorAll('.item-check:checked');
+    if(selected.length === 0) return;
+    const updates = {};
+    selected.forEach(cb => {
+        updates[`tms/fleetFinance/logs/${cb.getAttribute('data-key')}/status`] = 'invoiced';
+    });
+    db.ref().update(updates);
+}
+
+function resetFilters() {
+    document.getElementById('filterDate').value = '';
+    document.getElementById('filterPlate').value = '';
+    document.getElementById('filterUser').value = '';
+    document.getElementById('filterReason').value = '';
+    applyFilters();
+}
+
+function exportExcel() {
+    let csv = "\uFEFFDate,Type,Currency,Plate,User,Reason,Amount,Status,Note\n";
+    allLogs.forEach(d => {
+        csv += `${new Date(d.createdAt).toLocaleDateString()},${d.type},${d.currency||'ZMW'},${d.plate||''},${d.user||''},${d.reason||''},${d.amount},${d.status||''},${d.note||''}\n`;
+    });
+    const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
+    const link = document.createElement("a");
+    link.href = URL.createObjectURL(blob);
+    link.download = `Fleet_Report_${new Date().toISOString().split('T')[0]}.csv`;
+    link.click();
+}
+
+document.getElementById('selectAll').onchange = function() {
+    document.querySelectorAll('.item-check').forEach(cb => cb.checked = this.checked);
+};
+
+// 删除功能（权限控制）
+function deleteLog(key, type, currency, amount) {
+    if (!isAdmin && type === 'spend') {
+        alert("无权限删除已支出账目");
+        return;
+    }
+    if (confirm("确认删除此记录？此操作将影响余额。")) {
+        db.ref(`tms/fleetFinance/logs/${key}`).remove();
+    }
+}
+
+// 回退功能（仅管理员）
+function revertLog(key) {
+    if (!isAdmin) return;
+    if (confirm("确认回退此记录到待回收状态？")) {
+        db.ref(`tms/fleetFinance/logs/${key}/status`).set('pending');
+    }
+}
+
+// 显示充值详情（仅ZMW）
+function showRechargeDetail(key) {
+    const recharge = allLogs.find(log => log.key === key);
+    if (!recharge || recharge.currency !== 'ZMW') return;
+
+    // 找到所有ZMW充值，按时间升序
+    const zmwRecharges = allLogs.filter(log => log.type === 'recharge' && log.currency === 'ZMW').sort((a,b) => a.createdAt - b.createdAt);
+
+    // 找到当前充值的索引
+    const index = zmwRecharges.findIndex(log => log.key === key);
+
+    // 周期：从当前createdAt到下一个recharge的createdAt（如果没有下一个，则到现在）
+    const startTime = recharge.createdAt;
+    const endTime = index < zmwRecharges.length - 1 ? zmwRecharges[index + 1].createdAt : Date.now();
+
+    // 过滤spend ZMW在周期内
+    const periodSpends = allLogs.filter(log => 
+        log.type === 'spend' && log.currency === 'ZMW' && log.createdAt > startTime && log.createdAt < endTime
+    );
+
+    // 计算统计
+    let invoiced = 0, pending = 0;
+    periodSpends.forEach(spend => {
+        if (spend.status === 'invoiced') invoiced += spend.amount;
+        else if (spend.status === 'pending') pending += spend.amount;
+    });
+    const total = invoiced + pending;
+    const ratio = total > 0 ? (invoiced / total * 100).toFixed(2) : 0;
+
+    document.getElementById('detailSummary').innerHTML = `
+        <p>已入账: ${invoiced.toFixed(2)} ZMW | 未入账: ${pending.toFixed(2)} ZMW | 入账比例: ${ratio}%</p>
+    `;
+
+    const detailTbody = document.getElementById('detailTbody');
+    detailTbody.innerHTML = '';
+    periodSpends.forEach(spend => {
+        const dStr = new Date(spend.createdAt).toLocaleDateString();
+        const status = spend.status === 'invoiced' ? '已入账' : '待回收';
+        detailTbody.innerHTML += `<tr><td>${dStr}</td><td>${spend.user || '-'}</td><td>${spend.plate}</td><td>${spend.reason}</td><td>${spend.amount.toFixed(2)}</td><td>${status}</td></tr>`;
+    });
+
+    new bootstrap.Modal(document.getElementById('rechargeDetailModal')).show();
+}
+
+applyLangUI();
+</script>
+<script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/js/bootstrap.bundle.min.js"></script>
+</body>
+</html>

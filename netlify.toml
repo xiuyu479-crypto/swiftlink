@@ -1,0 +1,8 @@
+[build]
+  functions = "netlify/functions"
+  publish = "." # 你的静态文件所在目录
+
+[[redirects]]
+  from = "/api/*"
+  to = "/.netlify/functions/:splat"
+  status = 200

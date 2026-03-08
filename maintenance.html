@@ -1,0 +1,400 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<title>车辆维护管理系统 - TMS Maintenance</title>
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+
+<style>
+    :root { --primary: #1e63d8; --bg: #f0f4f8; --card: rgba(255, 255, 255, 0.9); --text: #334155; --success: #2ecc71; --gray: #95a5a6; --warning: #f39c12; --danger: #e74c3c; }
+    
+    /* 修改点：更换背景图片并优化显示效果 */
+    body { 
+        margin:0; 
+        font-family:'Segoe UI', system-ui, sans-serif; 
+        background: url('assets/images/abel.jpg') no-repeat center center fixed; 
+        background-size: cover;
+        color: var(--text); 
+    }
+    
+    .nav-header { background: var(--primary); color: white; padding: 1rem 2rem; display: flex; justify-content: space-between; align-items: center; box-shadow: 0 2px 10px rgba(0,0,0,0.1); }
+    .btn-nav { background: rgba(255,255,255,0.2); border: none; color: white; padding: 8px 15px; border-radius: 6px; cursor: pointer; font-weight: bold; text-decoration: none; font-size: 13px; }
+
+    .container { max-width: 1100px; margin: 2rem auto; padding: 0 1rem; }
+
+    /* 模块样式 */
+    .menu-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); gap: 1.5rem; }
+    .menu-card { background: var(--card); padding: 2rem 1rem; border-radius: 16px; text-align: center; cursor: pointer; transition: 0.3s; border: 1px solid #e2e8f0; display: flex; flex-direction: column; align-items: center; gap: 0.8rem; backdrop-filter: blur(10px); }
+    .menu-card:hover { transform: translateY(-5px); box-shadow: 0 10px 20px rgba(0,0,0,0.08); border-color: var(--primary); }
+
+    .module-content { display: none; background: var(--card); border-radius: 16px; padding: 2rem; box-shadow: 0 4px 15px rgba(0,0,0,0.05); backdrop-filter: blur(10px); }
+    .active-module { display: block; animation: slideIn 0.3s ease-out; }
+
+    /* 表单 UI */
+    .form-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 1.2rem; }
+    .full { grid-column: span 2; }
+    label { display: block; margin-bottom: 5px; font-weight: 600; font-size: 0.85rem; }
+    label span { color: var(--danger); }
+    input, select, textarea { width: 100%; padding: 12px; border: 1px solid #cbd5e1; border-radius: 8px; box-sizing: border-box; }
+    textarea { line-height: 1.6; min-height: 100px; }
+
+    .btn-group { display: flex; gap: 10px; margin-top: 20px; }
+    .btn-submit { flex: 2; background: var(--primary); color: white; border: none; padding: 14px; border-radius: 8px; cursor: pointer; font-weight: bold; }
+    .btn-pdf { flex: 1; background: #6366f1; color: white; border: none; padding: 14px; border-radius: 8px; cursor: pointer; font-weight: bold; }
+
+    /* 表格与状态 */
+    table { width: 100%; border-collapse: collapse; margin-top: 15px; }
+    th, td { padding: 12px; border-bottom: 1px solid #f1f5f9; text-align: left; }
+    .badge { padding: 4px 10px; border-radius: 4px; font-size: 0.75rem; font-weight: bold; }
+    .bg-red { background: var(--danger); color: white; }
+    .bg-orange { background: var(--warning); color: white; }
+    .bg-green { background: var(--success); color: white; }
+
+    /* 实时看板 */
+    .board-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(220px, 1fr)); gap: 1rem; }
+    .truck-card { padding: 20px; border-radius: 12px; color: white; }
+    .truck-card.normal { background: var(--success); }
+    .truck-card.repair { background: var(--gray); }
+
+    /* PDF 模板保持隐藏 */
+    #pdfTemplate { 
+        position: absolute; left: -9999px; top: -9999px; 
+        width: 210mm; min-height: 297mm; 
+        padding: 15mm; background: white; color: black; font-family: 'SimSun', serif; 
+    }
+    .pdf-header { text-align: center; border-bottom: 3px solid #000; padding-bottom: 10px; margin-bottom: 20px; }
+    .pdf-info-grid { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 10px; margin-bottom: 20px; font-size: 12px; }
+    .pdf-info-item { border-bottom: 1px solid #eee; padding: 5px 0; }
+    .pdf-info-item b { color: #555; display: block; font-size: 10px; text-transform: uppercase; }
+    .pdf-section-title { background: #f0f0f0; padding: 8px; font-weight: bold; font-size: 14px; border: 1px solid #ccc; border-bottom: none; }
+    .pdf-section-box { border: 1px solid #ccc; padding: 15px; min-height: 220px; margin-bottom: 15px; line-height: 1.8; font-size: 14px; white-space: pre-wrap; }
+    .pdf-footer { margin-top: 40px; display: grid; grid-template-columns: 1fr 1fr; gap: 60px; }
+    .pdf-sig { border-top: 1px solid #000; text-align: center; padding-top: 10px; font-size: 12px; }
+
+    @keyframes slideIn { from { opacity: 0; transform: translateY(15px); } to { opacity: 1; transform: translateY(0); } }
+    .table-header { cursor: pointer; }
+    .refresh-btn { background: var(--primary); color: white; border: none; padding: 8px 12px; border-radius: 6px; cursor: pointer; margin-bottom: 10px; }
+</style>
+</head>
+<body>
+
+<div id="pdfTemplate">
+    <div class="pdf-header">
+        <h1 style="margin:0; font-size: 26px;">Vehicle Check-in Form / 入厂单</h1>
+        <p style="margin:5px 0; font-size: 12px; color: #666;">Maintenance Management System (TMS)</p>
+    </div>
+    <div class="pdf-info-grid">
+        <div class="pdf-info-item"><b>Plate No / 车牌号</b><span id="p_plate" style="font-size:16px; font-weight:bold;"></span></div>
+        <div class="pdf-info-item"><b>Driver Name / 司机</b><span id="p_driver"></span></div>
+        <div class="pdf-info-item"><b>Odometer / 进场里程</b><span id="p_odo"></span> km</div>
+        <div class="pdf-info-item"><b>Service Type / 维护类型</b><span id="p_type"></span></div>
+        <div class="pdf-info-item"><b>Date / 进场日期</b><span id="p_date"></span></div>
+        <div class="pdf-info-item"><b>Mechanic / 主修机修</b><span id="p_tech"></span></div>
+    </div>
+    <div class="pdf-section-title">Fault Description / 故障描述 (Driver's Report)</div>
+    <div class="pdf-section-box" id="p_report"></div>
+    <div class="pdf-section-title">Parts Required / 配件需求清单</div>
+    <div class="pdf-section-box" id="p_parts"></div>
+    <div class="pdf-footer">
+        <div class="pdf-sig">Mechanic Signature / 技师签名</div>
+        <div class="pdf-sig">Authorized Approval / 经理审批</div>
+    </div>
+</div>
+
+<div class="nav-header">
+    <div style="display: flex; gap: 10px;">
+        <a href="index.html" class="btn-nav">🏠 返回主页 / Home</a>
+        <button class="btn-nav" onclick="showMenu()">☰ 菜单 / Menu</button>
+    </div>
+    <div id="navTitle" style="font-weight: bold;">维护中心 / Maintenance Center</div>
+    <div style="width:100px"></div>
+</div>
+
+<div class="container">
+    <div id="mainMenu" class="menu-grid">
+        <div class="menu-card" onclick="openModule('m1', '入厂登记 / Check-in')"><span class="icon">📥</span><h3>入厂登记</h3><small>Check-in</small></div>
+        <div class="menu-card" onclick="openModule('m2', '维护预警 / Reminder')"><span class="icon">⚠️</span><h3>维护预警</h3><small>Service Alert</small></div>
+        <div class="menu-card" onclick="openModule('m3', '出厂确认 / Check-out')"><span class="icon">📤</span><h3>出厂确认</h3><small>Check-out</small></div>
+        <div class="menu-card" onclick="openModule('m4', '配件统计 / Parts Log')"><span class="icon">⚙️</span><h3>配件统计</h3><small>Usage History</small></div>
+        <div class="menu-card" onclick="openModule('m5', '实时看板 / Live Status')"><span class="icon">🖥️</span><h3>状态看板</h3><small>Fleet Board</small></div>
+    </div>
+
+    <div id="m1" class="module-content">
+        <h3>车辆维护入厂登记 / Check-in</h3>
+        <div class="form-grid">
+            <div class="field"><label>选择车牌 / Plate No.<span>*</span></label><select id="m1_select"></select></div>
+            <div class="field"><label>司机名称 / Driver Name<span>*</span></label><input type="text" id="m1_driver"></div>
+            <div class="field"><label>进场里程 / Current km<span>*</span></label><input type="number" id="m1_odo"></div>
+            <div class="field"><label>保养类型 / Service Type</label>
+                <select id="m1_type">
+                    <option value="A保 (Oil Change)">A保 (换油/滤芯)</option>
+                    <option value="B保 (Repair)">B保 (中修)</option>
+                    <option value="C保 (Check)">C保 (全车检查)</option>
+                    <option value="Emergency">临时维修</option>
+                </select>
+            </div>
+            <div class="field full"><label>主修技师 / Mechanic</label><input type="text" id="m1_tech"></div>
+            <div class="field full"><label>故障描述 / Fault Report<span>*</span></label><textarea id="m1_report" placeholder="请详细填写..."></textarea></div>
+            <div class="field full"><label>配件需求 / Parts Needed<span>*</span></label><textarea id="m1_parts" placeholder="请详细填写..."></textarea></div>
+        </div>
+        <div class="btn-group">
+            <button class="btn-submit" onclick="doCheckIn()">确认入厂 / Save & Entry</button>
+            <button class="btn-pdf" onclick="printCheckInPDF()">🖨️ 打印入厂单 / Print PDF</button>
+        </div>
+    </div>
+
+    <div id="m2" class="module-content">
+        <h3>维护周期预警 / Maintenance Alert</h3>
+        <button class="refresh-btn" onclick="renderWarnings()">刷新列表 / Refresh</button>
+        <table id="warningTable">
+            <thead>
+                <tr>
+                    <th class="table-header" onclick="sortTable(0)">车牌 / Plate</th>
+                    <th class="table-header" onclick="sortTable(1)">上次维护 / Last Service km</th>
+                    <th class="table-header" onclick="sortTable(2)">当前里程 / Current km</th>
+                    <th class="table-header" onclick="sortTable(3)">下次保养 / Target km</th>
+                    <th>状态 / Status</th>
+                </tr>
+            </thead>
+            <tbody id="warningContainer"></tbody>
+        </table>
+    </div>
+
+    <div id="m3" class="module-content">
+        <h3>完工离厂确认 / Check-out</h3>
+        <div class="form-grid">
+            <div class="field"><label>在修车牌 / Select Truck</label><select id="m3_select" onchange="updateM3Timer()"></select></div>
+            <div class="field"><label>累计时长 / Duration</label><div id="m3_timerDisplay" style="font-size:1.5rem; font-weight:bold; color:var(--danger)">0.00 Hours</div></div>
+            <div class="field"><label>出厂里程 / Release km</label><input type="number" id="m3_outOdo"></div>
+            <div class="field"><label>机修名字 / Mechanic Name</label><input type="text" id="m3_finalTech"></div>
+            <div class="field full"><label>消耗配件汇总 / Final Parts</label><textarea id="m3_finalParts"></textarea></div>
+        </div>
+        <button class="btn-submit" style="background:var(--success)" onclick="doCheckOut()">确认结算 / Settle & Release</button>
+    </div>
+
+    <div id="m4" class="module-content">
+        <h3>配件记录查询 / History</h3>
+        <div style="display:flex; gap:10px; margin-bottom:15px;">
+            <input type="date" id="searchDate">
+            <input type="text" id="searchPlate" placeholder="车牌号">
+            <button class="btn-nav" style="background:var(--primary)" onclick="renderPartsLog()">搜索</button>
+        </div>
+        <table>
+            <thead><tr><th>日期</th><th>车牌</th><th>机修</th><th>时长</th><th>配件详情</th></tr></thead>
+            <tbody id="partsLogBody"></tbody>
+        </table>
+    </div>
+
+    <div id="m5" class="module-content">
+        <h3>实时看板 / Fleet Board</h3>
+        <div id="boardContainer" class="board-grid"></div>
+    </div>
+</div>
+
+<script type="module">
+import { initializeApp } from "https://www.gstatic.com/firebasejs/10.11.1/firebase-app.js";
+import { getDatabase, ref, update, push, get } from "https://www.gstatic.com/firebasejs/10.11.1/firebase-database.js";
+
+const firebaseConfig = {
+  apiKey: "AIzaSyDEbePpsrXwD8Okqa93UOGUFE37c8SFHS0",
+  authDomain: "cjsmartcargo-datebase.firebaseapp.com",
+  databaseURL: "https://cjsmartcargo-datebase-default-rtdb.firebaseio.com",
+  projectId: "cjsmartcargo-datebase",
+  storageBucket: "cjsmartcargo-datebase.firebasestorage.app",
+  messagingSenderId: "751451468006",
+  appId: "1:751451468006:web:a3cbd33cf3c2b29f624b27"
+};
+
+const app = initializeApp(firebaseConfig);
+const db = getDatabase(app);
+
+let allVehicles = {};
+let boardTimer = null;
+
+window.openModule = (id, title) => {
+    document.getElementById('mainMenu').style.display = 'none';
+    document.querySelectorAll('.module-content').forEach(m => m.classList.remove('active-module'));
+    document.getElementById(id).classList.add('active-module');
+    document.getElementById('navTitle').innerText = title;
+    refreshData(id);
+};
+
+window.showMenu = () => {
+    document.getElementById('mainMenu').style.display = 'grid';
+    document.querySelectorAll('.module-content').forEach(m => m.classList.remove('active-module'));
+    document.getElementById('navTitle').innerText = '维护中心 / Maintenance Center';
+    if(boardTimer) clearInterval(boardTimer);
+};
+
+async function refreshData(moduleId) {
+    const snap = await get(ref(db, "tms/vehicles"));
+    allVehicles = snap.val() || {};
+    if(moduleId === 'm1' || moduleId === 'm3') fillSelects();
+    if(moduleId === 'm2') renderWarnings();
+    if(moduleId === 'm4') renderPartsLog();
+    if(moduleId === 'm5') startLiveBoard();
+}
+
+function fillSelects() {
+    const m1 = document.getElementById('m1_select');
+    const m3 = document.getElementById('m3_select');
+    m1.innerHTML = '<option value="">选择车牌...</option>';
+    m3.innerHTML = '<option value="">选择车牌...</option>';
+    for(let key in allVehicles) {
+        const v = allVehicles[key];
+        if(!v.maintaining) m1.innerHTML += `<option value="${key}">${v.head || '??'}</option>`;
+        else m3.innerHTML += `<option value="${key}">${v.head || '??'}</option>`;
+    }
+}
+
+window.printCheckInPDF = async () => {
+    const p = document.getElementById('m1_select').selectedOptions[0]?.text;
+    if(!p || p.includes("选择")) return alert("请先选择车辆！");
+    const btn = document.querySelector('.btn-pdf');
+    btn.innerText = "Generating...";
+    btn.disabled = true;
+    document.getElementById('p_plate').innerText = p;
+    document.getElementById('p_driver').innerText = document.getElementById('m1_driver').value || "-";
+    document.getElementById('p_odo').innerText = document.getElementById('m1_odo').value || "0";
+    document.getElementById('p_type').innerText = document.getElementById('m1_type').value;
+    document.getElementById('p_date').innerText = new Date().toLocaleString();
+    document.getElementById('p_tech').innerText = document.getElementById('m1_tech').value || "Not Assigned";
+    document.getElementById('p_report').innerText = document.getElementById('m1_report').value || "N/A";
+    document.getElementById('p_parts').innerText = document.getElementById('m1_parts').value || "N/A";
+    const target = document.getElementById('pdfTemplate');
+    target.style.left = "0"; 
+    try {
+        const canvas = await html2canvas(target, { scale: 2 });
+        const imgData = canvas.toDataURL('image/jpeg', 1.0);
+        const { jsPDF } = window.jspdf;
+        const pdf = new jsPDF('p', 'mm', 'a4');
+        pdf.addImage(imgData, 'JPEG', 0, 0, 210, 297);
+        pdf.save(`CheckIn_${p}.pdf`);
+    } catch (e) {
+        console.error(e);
+    } finally {
+        target.style.left = "-9999px";
+        btn.innerText = "🖨️ 打印入厂单 / Print PDF";
+        btn.disabled = false;
+    }
+};
+
+window.doCheckIn = async () => {
+    const key = document.getElementById('m1_select').value;
+    const dr = document.getElementById('m1_driver').value;
+    const km = document.getElementById('m1_odo').value;
+    const rep = document.getElementById('m1_report').value;
+    const pts = document.getElementById('m1_parts').value;
+    if(!key || !dr || !km || !rep || !pts) return alert("请填写带*必填项！");
+    await update(ref(db, `tms/vehicles/${key}`), {
+        maintaining: true, startTime: Date.now(), km: parseFloat(km),
+        driver: dr, serviceType: document.getElementById('m1_type').value,
+        mechanic: document.getElementById('m1_tech').value, pendingParts: pts, report: rep
+    });
+    alert("入厂成功！");
+    showMenu();
+};
+
+function renderWarnings() {
+    const container = document.getElementById('warningContainer');
+    container.innerHTML = "";
+    let rows = [];
+    for(let key in allVehicles) {
+        const v = allVehicles[key];
+        const curKm = v.km || 0;
+        const lastKm = v.lastServiceOdo || 0;
+        const nextKm = v.nextServiceOdo || (lastKm + 5000);
+        const diff = nextKm - curKm;
+        let cls = "bg-green", txt = "良好 / OK";
+        if(diff <= 0) { cls = "bg-red"; txt = "超期 / OVERDUE"; }
+        else if(diff < 1000) { cls = "bg-orange"; txt = "准备保养 / DUE"; }
+        rows.push({ plate: v.head||'??', lastKm, curKm, nextKm, cls, txt });
+    }
+    rows.sort((a, b) => {
+        const order = { 'bg-red': 2, 'bg-orange': 1, 'bg-green': 0 };
+        return order[b.cls] - order[a.cls];
+    });
+    rows.forEach(row => {
+        container.innerHTML += `<tr><td><b>${row.plate}</b></td><td>${row.lastKm}</td><td>${row.curKm}</td><td>${row.nextKm}</td><td><span class="badge ${row.cls}">${row.txt}</span></td></tr>`;
+    });
+}
+
+window.updateM3Timer = () => {
+    const v = allVehicles[document.getElementById('m3_select').value];
+    if(!v) return;
+    const h = ((Date.now() - v.startTime) / 3600000).toFixed(2);
+    document.getElementById('m3_timerDisplay').innerText = `${h} Hours`;
+    document.getElementById('m3_finalTech').value = v.mechanic || "";
+    document.getElementById('m3_finalParts').value = v.pendingParts || "";
+};
+
+window.doCheckOut = async () => {
+    const key = document.getElementById('m3_select').value;
+    const outKm = document.getElementById('m3_outOdo').value;
+    if(!key || !outKm) return alert("信息不全");
+    const v = allVehicles[key];
+    const log = { plate: v.head, mechanic: document.getElementById('m3_finalTech').value, duration: ((Date.now() - v.startTime) / 3600000).toFixed(2), parts: document.getElementById('m3_finalParts').value, date: new Date().toISOString().split('T')[0] };
+    await push(ref(db, "tms/maintenance_logs"), log);
+    await update(ref(db, `tms/vehicles/${key}`), { maintaining: false, startTime: null, km: parseFloat(outKm), lastServiceOdo: parseFloat(outKm), nextServiceOdo: parseFloat(outKm) + 5000 });
+    alert("出厂结算完成！");
+    showMenu();
+};
+
+// 修改点：修改 renderPartsLog 使记录从最新到最旧显示
+async function renderPartsLog() {
+    const sDate = document.getElementById('searchDate').value;
+    const sPlate = document.getElementById('searchPlate').value.toLowerCase();
+    const snap = await get(ref(db, "tms/maintenance_logs"));
+    const data = snap.val();
+    const body = document.getElementById('partsLogBody');
+    body.innerHTML = "";
+    
+    // 将对象转为数组并反转，确保最新的记录排在前面
+    let logs = [];
+    for(let k in data) { logs.push(data[k]); }
+    logs.reverse(); 
+
+    logs.forEach(item => {
+        if(sDate && item.date !== sDate) return;
+        if(sPlate && !item.plate.toLowerCase().includes(sPlate)) return;
+        body.innerHTML += `<tr><td>${item.date}</td><td>${item.plate}</td><td>${item.mechanic}</td><td>${item.duration}h</td><td>${item.parts}</td></tr>`;
+    });
+}
+
+function startLiveBoard() {
+    const container = document.getElementById('boardContainer');
+    const draw = () => {
+        container.innerHTML = "";
+        for(let key in allVehicles) {
+            const v = allVehicles[key];
+            const isRepair = v.maintaining;
+            let timeStr = isRepair ? `<div class="truck-timer">维护已耗时: ${((Date.now()-v.startTime)/3600000).toFixed(2)}h</div>` : "";
+            container.innerHTML += `<div class="truck-card ${isRepair?'repair':'normal'}"><div class="truck-name">${v.head||"???"}</div><div>${isRepair?'维护中':'运行中'}</div>${timeStr}</div>`;
+        }
+    };
+    draw();
+    boardTimer = setInterval(draw, 10000);
+}
+
+window.sortTable = (colIndex) => {
+    const table = document.getElementById('warningTable');
+    const rows = Array.from(table.rows).slice(1);
+    rows.sort((a, b) => {
+        let valA = a.cells[colIndex].innerText;
+        let valB = b.cells[colIndex].innerText;
+        if (colIndex === 4) { 
+            const order = { '超期 / OVERDUE': 2, '准备保养 / DUE': 1, '良好 / OK': 0 };
+            return order[valB] - order[valA];
+        } else {
+            valA = parseFloat(valA) || valA;
+            valB = parseFloat(valB) || valB;
+            return valA > valB ? 1 : (valA < valB ? -1 : 0);
+        }
+    });
+    rows.forEach(row => table.tBodies[0].appendChild(row));
+};
+</script>
+</body>
+</html>

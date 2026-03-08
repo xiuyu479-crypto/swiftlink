@@ -1,0 +1,220 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>订单与任务管理 - TMS</title>
+    <style>
+        :root { --primary-color: #1e63d8; --bg-gradient: linear-gradient(135deg, #e9f3ff 0%, #dbe9ff 100%); --glass-bg: rgba(255, 255, 255, 0.75); }
+        body { margin: 0; font-family: -apple-system, sans-serif; background: var(--bg-gradient); min-height: 100vh; color: #333; }
+        .navbar { padding: 15px 20px; background: var(--glass-bg); backdrop-filter: blur(10px); display: flex; align-items: center; gap: 20px; position: sticky; top: 0; z-index: 100; box-shadow: 0 2px 10px rgba(0,0,0,0.05); }
+        .back-btn { cursor: pointer; color: var(--primary-color); font-weight: bold; }
+        .status-tabs { display: flex; background: rgba(0,0,0,0.05); padding: 5px; border-radius: 12px; flex: 1; }
+        .tab { flex: 1; text-align: center; padding: 10px 5px; border-radius: 8px; cursor: pointer; font-size: 13px; font-weight: 600; transition: 0.3s; }
+        .tab.active { background: white; color: var(--primary-color); box-shadow: 0 2px 8px rgba(0,0,0,0.1); }
+        .container { max-width: 1000px; margin: 20px auto; padding: 0 15px; }
+        .card { background: var(--glass-bg); backdrop-filter: blur(12px); border-radius: 20px; padding: 25px; box-shadow: 0 8px 30px rgba(0,0,0,0.05); margin-bottom: 20px; }
+        .section-title { font-size: 18px; font-weight: bold; color: var(--primary-color); margin-bottom: 20px; }
+        .form-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap: 15px; }
+        .form-group { display: flex; flex-direction: column; gap: 5px; }
+        label { font-size: 12px; color: #666; font-weight: 600; }
+        input, select { padding: 10px; border: 1px solid #dfe8ff; border-radius: 8px; outline: none; }
+        input:focus, select:focus { border-color: var(--primary-color); }
+        .v-tag-container { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 10px; }
+        .v-tag { background: var(--primary-color); color: white; padding: 4px 10px; border-radius: 6px; font-size: 12px; }
+        .task-item { background: white; padding: 15px; border-radius: 15px; margin-bottom: 10px; display: flex; justify-content: space-between; align-items: center; border-left: 4px solid #ccc; }
+        .task-item.pending { border-left-color: #ffa500; }
+        .task-item.dispatched { border-left-color: #1e63d8; }
+        .btn-main { background: var(--primary-color); color: white; border: none; padding: 15px; border-radius: 12px; width: 100%; font-weight: bold; cursor: pointer; margin-top: 15px; }
+        .modal { display: none; position: fixed; inset: 0; background: rgba(0,0,0,0.4); backdrop-filter: blur(5px); z-index: 1000; justify-content: center; align-items: center; }
+        .modal-content { background: white; padding: 25px; border-radius: 20px; width: 90%; max-width: 500px; max-height: 80vh; overflow-y: auto; }
+    </style>
+</head>
+<body>
+    <nav class="navbar">
+        <div class="back-btn" onclick="location.href='index.html'">返回首页</div>
+        <div class="status-tabs">
+            <div class="tab active" onclick="showView('new', this)">新建项目</div>
+            <div class="tab" id="tab-pending" onclick="showView('pending', this)">待发车 (0)</div>
+            <div class="tab" id="tab-dispatched" onclick="showView('dispatched', this)">已发车 (0)</div>
+            <div class="tab" id="tab-completed" onclick="showView('completed', this)">已完结 (0)</div>
+        </div>
+    </nav>
+
+    <div class="container">
+        <div id="view-new" class="view-content">
+            <form id="orderForm">
+                <div class="card">
+                    <div class="section-title">1. 基本信息</div>
+                    <div class="form-grid">
+                        <div class="form-group"><label>项目名称</label><input type="text" id="projName" required></div>
+                        <div class="form-group"><label>客户</label><select id="clientSelect" required></select></div>
+                        <div class="form-group"><label>装货地</label><input type="text" id="loadP" required></div>
+                        <div class="form-group"><label>卸货地</label><input type="text" id="offP" required></div>
+                    </div>
+                </div>
+                <div class="card">
+                    <div class="section-title">2. 选择车辆</div>
+                    <button type="button" class="btn-main" style="background:#f0f6ff; color:#1e63d8; margin:0;" onclick="openVModal()">+ 勾选任务车辆</button>
+                    <div id="selectedVDisplay" class="v-tag-container"></div>
+                </div>
+                <div class="card">
+                    <div class="section-title">3. 费用预设 (此信息将隐藏传递至财务端)</div>
+                    <div class="form-grid">
+                        <div class="form-group">
+                            <label>预设运费 Rate</label>
+                            <div style="display:flex;gap:5px">
+                                <select id="fRateUnit" style="width: 80px;"><option value="USD">USD</option><option value="ZMW">ZMW</option></select>
+                                <input type="number" id="fRate" step="0.01" style="flex:1" placeholder="金额">
+                            </div>
+                        </div>
+                        <div class="form-group">
+                            <label>Trip Money</label>
+                            <div style="display:flex;gap:5px">
+                                <select id="fTripUnit" style="width: 80px;"><option value="ZMW">ZMW</option><option value="USD">USD</option></select>
+                                <input type="number" id="fTrip" style="flex:1" placeholder="金额">
+                            </div>
+                        </div>
+                        <div class="form-group">
+                            <label>Bonus (奖金)</label>
+                            <div style="display:flex;gap:5px">
+                                <select id="fBonusUnit" style="width: 80px;"><option value="ZMW">ZMW</option><option value="USD">USD</option></select>
+                                <input type="number" id="fBonus" style="flex:1" placeholder="金额">
+                            </div>
+                        </div>
+                        <div class="form-group">
+                            <label>过境费用 Transit</label>
+                            <div style="display:flex;gap:5px">
+                                <select id="fTransitUnit" style="width: 80px;"><option value="USD">USD</option><option value="ZMW">ZMW</option></select>
+                                <input type="number" id="fTransit" step="0.01" style="flex:1" placeholder="金额">
+                            </div>
+                        </div>
+                    </div>
+                    <button type="submit" class="btn-main">确认并存入待发车</button>
+                </div>
+            </form>
+        </div>
+        <div id="view-list" class="view-content" style="display:none"><div id="taskList"></div></div>
+    </div>
+
+    <div id="vModal" class="modal">
+        <div class="modal-content">
+            <h3>勾选车辆</h3>
+            <div id="vList"></div>
+            <button class="btn-main" onclick="confirmV()">确定选择</button>
+        </div>
+    </div>
+
+    <script type="module">
+        import { initializeApp } from "https://www.gstatic.com/firebasejs/9.23.0/firebase-app.js";
+        import { getDatabase, ref, push, onValue, update } from "https://www.gstatic.com/firebasejs/9.23.0/firebase-database.js";
+
+        const firebaseConfig = {
+            apiKey: "AIzaSyDEbePpsrXwD8Okqa93UOGUFE37c8SFHS0",
+            authDomain: "cjsmartcargo-datebase.firebaseapp.com",
+            databaseURL: "https://cjsmartcargo-datebase-default-rtdb.firebaseio.com",
+            projectId: "cjsmartcargo-datebase",
+            storageBucket: "cjsmartcargo-datebase.firebasestorage.app"
+        };
+
+        const app = initializeApp(firebaseConfig);
+        const db = getDatabase(app);
+
+        // 初始化下拉菜单
+        onValue(ref(db, 'tms/clients'), s => {
+            const html = Object.values(s.val()||{}).map(c => `<option value="${c.name}">${c.name}</option>`).join('');
+            document.getElementById('clientSelect').innerHTML = html;
+        });
+
+        let vehicles = [];
+        let selectedVehicles = [];
+        onValue(ref(db, 'tms/vehicles'), s => { vehicles = Object.values(s.val()||{}); });
+
+        window.openVModal = () => {
+            document.getElementById('vList').innerHTML = vehicles.map(v => `
+                <div style="padding:10px; border-bottom:1px solid #eee">
+                    <input type="checkbox" value="${v.head}" ${selectedVehicles.find(sv=>sv.head===v.head)?'checked':''} data-trailer="${v.trailer}"> ${v.head} (${v.trailer})
+                </div>
+            `).join('');
+            document.getElementById('vModal').style.display = 'flex';
+        };
+
+        window.confirmV = () => {
+            selectedVehicles = Array.from(document.querySelectorAll('#vList input:checked')).map(i => ({ head: i.value, trailer: i.dataset.trailer }));
+            document.getElementById('selectedVDisplay').innerHTML = selectedVehicles.map(v => `<div class="v-tag">${v.head}</div>`).join('');
+            document.getElementById('vModal').style.display = 'none';
+        };
+
+        document.getElementById('orderForm').addEventListener('submit', async (e) => {
+            e.preventDefault();
+            if(selectedVehicles.length === 0) return alert("请至少选择一辆车");
+
+            const batchId = Date.now();
+            const promises = selectedVehicles.map(v => {
+                // 修改点：确保所有单位从当前页面的 select 框中实时抓取
+                return push(ref(db, 'tms/dispatch'), {
+                    projectName: document.getElementById('projName').value,
+                    client: document.getElementById('clientSelect').value,
+                    loadP: document.getElementById('loadP').value,
+                    offP: document.getElementById('offP').value,
+                    head: v.head,
+                    trailer: v.trailer,
+                    status: 'pending',
+                    createdAt: Date.now(),
+                    batchId: batchId,
+                    fRate: { 
+                        val: Number(document.getElementById('fRate').value) || 0, 
+                        unit: document.getElementById('fRateUnit').value 
+                    },
+                    fTrip: { 
+                        val: Number(document.getElementById('fTrip').value) || 0, 
+                        unit: document.getElementById('fTripUnit').value 
+                    },
+                    fBonus: { 
+                        val: Number(document.getElementById('fBonus').value) || 0, 
+                        unit: document.getElementById('fBonusUnit').value 
+                    },
+                    transit: { 
+                        val: Number(document.getElementById('fTransit').value) || 0, 
+                        unit: document.getElementById('fTransitUnit').value 
+                    }
+                });
+            });
+
+            await Promise.all(promises);
+            alert("项目已成功存入待发车列表");
+            location.reload();
+        });
+
+        window.showView = (type, el) => {
+            document.querySelectorAll('.tab').forEach(t => t.classList.remove('active'));
+            el.classList.add('active');
+            document.getElementById('view-new').style.display = type === 'new' ? 'block' : 'none';
+            document.getElementById('view-list').style.display = type === 'new' ? 'none' : 'block';
+            if(type !== 'new') renderList(type);
+        };
+
+        function renderList(status) {
+            onValue(ref(db, 'tms/dispatch'), s => {
+                const list = document.getElementById('taskList'); list.innerHTML = '';
+                const data = s.val() || {};
+                Object.keys(data).filter(id => data[id].status === status).forEach(id => {
+                    const item = data[id];
+                    list.innerHTML += `<div class="task-item ${status}">
+                        <div><b>${item.projectName}</b><br><small>${item.head} | ${item.client}</small></div>
+                        ${status === 'pending' ? `<button class="btn-main" style="width:auto;margin:0;padding:8px 15px" onclick="location.href='dispatch.html?orderId=${id}'">填写派车单</button>` : 
+                          (status === 'dispatched' ? `<button class="btn-main" style="width:auto;margin:0;padding:8px 15px;background:#28a745" onclick="window.finishTask('${id}')">确认完结</button>` : '<span>已归档</span>')}
+                    </div>`;
+                });
+            }, { onlyOnce: true });
+        }
+
+        onValue(ref(db, 'tms/dispatch'), s => {
+            const data = Object.values(s.val()||{});
+            document.getElementById('tab-pending').innerText = `待发车 (${data.filter(i=>i.status==='pending').length})`;
+            document.getElementById('tab-dispatched').innerText = `已发车 (${data.filter(i=>i.status==='dispatched').length})`;
+            document.getElementById('tab-completed').innerText = `已完结 (${data.filter(i=>i.status==='completed').length})`;
+        });
+    </script>
+</body>
+</html>

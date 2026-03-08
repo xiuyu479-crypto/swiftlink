@@ -1,0 +1,264 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width,initial-scale=1" />
+<title>财务统计报表(修复版) - TMS</title>
+<style>
+:root{--accent:#1e63d8;--ok:#2d9f6a;--bad:#e63946;--bg:#f5f7fb;}
+body{font-family:Arial,Helvetica,sans-serif;margin:0;background:var(--bg);color:#222}
+.header{padding:18px 20px;background:white;display:flex;align-items:center;gap:12px;box-shadow:0 1px 0 rgba(0,0,0,0.06)}
+.header h1{margin:0;font-size:18px;color:var(--accent)}
+.container{max-width:1600px;margin:18px auto;padding:18px}
+
+/* 配置栏 */
+.config-bar { background: #fff; padding: 15px; border-radius: 10px; margin-bottom: 15px; display: flex; gap: 20px; align-items: center; box-shadow: 0 2px 8px rgba(0,0,0,0.05); border-left: 5px solid var(--accent); }
+.config-item { display: flex; align-items: center; gap: 8px; font-size: 13px; font-weight: bold; }
+.input-s { padding: 6px; border: 1px solid #ddd; border-radius: 4px; width: 80px; }
+
+.filterCard{background:white;padding:12px;border-radius:8px;box-shadow:0 2px 8px rgba(0,0,0,0.04);display:flex;gap:12px;align-items:center;margin-bottom:12px}
+.input{padding:8px;border:1px solid #ddd;border-radius:6px;font-size:13px}
+.btn{padding:8px 16px;border-radius:6px;border:none;background:var(--accent);color:white;cursor:pointer;font-weight:600}
+.btn-export{background:var(--ok)}
+
+.table-container{background:white;border-radius:8px;overflow-x:auto;box-shadow:0 2px 8px rgba(0,0,0,0.04)}
+table{width:100%;border-collapse:collapse;font-size:12px;min-width:1500px}
+th{background:#f8f9fc;text-align:left;padding:12px;color:#666;border-bottom:2px solid #edf0f5;white-space:nowrap}
+td{padding:12px;border-bottom:1px solid #edf0f5;color:#444;vertical-align:middle}
+tr:hover{background:#fcfdfe}
+.badge-gp{padding:4px 8px;border-radius:4px;font-weight:bold}
+.gp-pos{background:#e8f5e9;color:#2e7d32}
+.gp-neg{background:#ffebee;color:#c62828}
+
+/* 手动费用输入框 */
+.extra-input-group { display: flex; align-items: center; gap: 4px; }
+.input-mini { width: 55px; padding: 4px; border: 1px solid #ccc; border-radius: 4px; font-size: 11px; }
+.btn-save { padding: 4px 6px; background: var(--ok); color: white; border: none; border-radius: 4px; cursor: pointer; font-size: 10px; }
+</style>
+</head>
+<body>
+
+<div class="header">
+  <button class="btn" onclick="location.href='index.html'">← 返回</button>
+  <h1>已完成订单财务统计 / Financial Report</h1>
+</div>
+
+<div class="container">
+  <div class="config-bar">
+    <div class="config-item">
+      <span>⛽ 燃油单价(USD/L):</span>
+      <input type="number" id="fuelPrice" class="input-s" value="1.17" step="0.01">
+    </div>
+    <div class="config-item">
+      <span>💱 汇率(1 USD : ZMW):</span>
+      <input type="number" id="exRate" class="input-s" value="20" step="0.1">
+    </div>
+    <div style="color:#999; font-size:12px">提示：修改参数后点击“查询”刷新计算。其他费用修改后请点击“存”。</div>
+  </div>
+
+  <div class="filterCard">
+    <label>日期:</label>
+    <input type="date" id="dateFilter" class="input">
+    <label>关键字:</label>
+    <input type="text" id="keyword" class="input" placeholder="订单/客户/车牌..." style="width:200px">
+    <button class="btn" id="searchBtn">查询并重算</button>
+    <button class="btn btn-export" id="exportBtn">导出报告</button>
+  </div>
+
+  <div class="table-container">
+    <table>
+      <thead>
+        <tr>
+          <th>订单信息</th>
+          <th>客户/车牌</th>
+          <th>完成天数</th>
+          <th>里程/油耗</th>
+          <th>预设运费(USD)</th>
+          <th>过境费(USD)</th>
+          <th>燃油成本(USD)</th>
+          <th>路上费用(折算USD)</th>
+          <th>其他费用(手动)</th>
+          <th>毛利(USD)</th>
+          <th>完成日期</th>
+        </tr>
+      </thead>
+      <tbody id="tableBody">
+        <tr><td colspan="11" style="text-align:center;padding:40px;color:#999">正在同步云端数据...</td></tr>
+      </tbody>
+    </table>
+  </div>
+</div>
+
+<script type="module">
+import { initializeApp } from "https://www.gstatic.com/firebasejs/10.11.1/firebase-app.js";
+import { getDatabase, ref, onValue, update } from "https://www.gstatic.com/firebasejs/10.11.1/firebase-database.js";
+
+const firebaseConfig = {
+  apiKey: "AIzaSyDEbePpsrXwD8Okqa93UOGUFE37c8SFHS0",
+  authDomain: "cjsmartcargo-datebase.firebaseapp.com",
+  databaseURL: "https://cjsmartcargo-datebase-default-rtdb.firebaseio.com",
+  projectId: "cjsmartcargo-datebase",
+  storageBucket: "cjsmartcargo-datebase.firebasestorage.app",
+  messagingSenderId: "751451468006",
+  appId: "1:751451468006:web:a3cbd33cf3c2b29f624b27"
+};
+
+const app = initializeApp(firebaseConfig);
+const db = getDatabase(app);
+
+const tableBody = document.getElementById('tableBody');
+const searchBtn = document.getElementById('searchBtn');
+const fuelPriceIn = document.getElementById('fuelPrice');
+const exRateIn = document.getElementById('exRate');
+
+let allOrders = {};
+let allDispatch = {}; // 新增：用于存储原始派车单数据以回溯费用
+
+// 核心财务计算逻辑
+function computeFinance(o) {
+    const rate = Number(exRateIn.value) || 20;
+    const fPrice = Number(fuelPriceIn.value) || 1.17;
+
+    // --- 修复逻辑开始：回溯数据 ---
+    // 如果订单本身缺少财务数据(fRate/fTrip)，尝试通过 relDispatchId 从原始派车记录(allDispatch)中查找
+    // 派车单中 transit 是对象 {val, unit}，但订单中 transit 是数字(由dispatch.html生成)
+    let dData = {};
+    if (o.relDispatchId && allDispatch[o.relDispatchId]) {
+        dData = allDispatch[o.relDispatchId];
+    }
+    
+    // 1. 运费读取 (优先读取订单本身，若无则读取回溯的派车单数据)
+    const fRateObj = o.fRate || dData.fRate || {};
+    const revVal = Number(fRateObj.val || o.totalFee || 0);
+    const revUnit = fRateObj.unit || 'USD';
+    const revenueUSD = (revUnit === 'ZMW') ? (revVal / rate) : revVal;
+
+    // 2. 路上费用折算 (Trip Money + Bonus)
+    const fTripObj = o.fTrip || dData.fTrip || {};
+    const tripVal = Number(fTripObj.val || o.tripMoney || 0);
+    const tripUnit = fTripObj.unit || 'ZMW';
+    
+    const fBonusObj = o.fBonus || dData.fBonus || {};
+    const bonusVal = Number(fBonusObj.val || 0);
+    const bonusUnit = fBonusObj.unit || 'ZMW';
+    
+    const tripUSD = (tripUnit === 'ZMW') ? (tripVal / rate) : tripVal;
+    const bonusUSD = (bonusUnit === 'ZMW') ? (bonusVal / rate) : bonusVal;
+    const roadExpenseUSD = tripUSD + bonusUSD;
+
+    // 4. 过境费 (优先使用派车单最终确认的数字 o.transit，如果没有则回溯原始预设)
+    let transitUSD = Number(o.transit || o.borderFee || 0);
+    if (!transitUSD && dData.transit && dData.transit.val) {
+        // 注意：neworders里 transit是对象 {val, unit='USD'}
+        transitUSD = Number(dData.transit.val); 
+    }
+    // --- 修复逻辑结束 ---
+
+    // 3. 燃油成本
+    const liters = Number(o.fuelTotal || o.totalFuel || 0);
+    const fuelCostUSD = liters * fPrice;
+
+    // 5. 手动添加的其他费用
+    let manualUSD = 0;
+    if(o.manualExtra) {
+        manualUSD = (o.manualExtra.unit === 'ZMW') ? (Number(o.manualExtra.val) / rate) : Number(o.manualExtra.val);
+    }
+
+    // 6. 天数计算
+    const start = o.startTime || 0;
+    const end = o.archivedAt || o.finishTime || Date.now();
+    const days = start ? ((end - start) / (1000 * 60 * 60 * 24)).toFixed(1) : "-";
+
+    const totalCost = fuelCostUSD + transitUSD + roadExpenseUSD + manualUSD;
+    const gross = (revenueUSD - totalCost).toFixed(2);
+
+    return { revenueUSD, fuelCostUSD, transitUSD, roadExpenseUSD, manualUSD, gross, days, liters };
+}
+
+function render(dateF = '', keyF = '') {
+    tableBody.innerHTML = '';
+    // 如果还没加载完数据，暂不渲染
+    if (Object.keys(allOrders).length === 0 && Object.keys(allDispatch).length === 0) {
+         tableBody.innerHTML = '<tr><td colspan="11" style="text-align:center;padding:40px;color:#999">正在同步云端数据...</td></tr>';
+         return;
+    }
+
+    const entries = Object.entries(allOrders).reverse();
+    
+    entries.forEach(([id, o]) => {
+        const dateStr = o.archivedAt ? new Date(o.archivedAt).toLocaleDateString() : '-';
+        const searchStr = `${o.orderId} ${o.customer} ${o.tractor} ${o.driver}`.toLowerCase();
+        
+        if ((!keyF || searchStr.includes(keyF.toLowerCase())) && (!dateF || dateStr.includes(dateF))) {
+            const fin = computeFinance(o);
+            const row = document.createElement('tr');
+            row.innerHTML = `
+                <td><b>${o.orderId || id}</b><br><small>${o.driver || '-'}</small></td>
+                <td>${o.customer || '-'}<br><small style="color:var(--accent)">${o.tractor || '-'}</small></td>
+                <td>${fin.days} 天</td>
+                <td>${o.loadedKm + o.emptyKm || 0} Km<br><small>${fin.liters.toFixed(1)} L</small></td>
+                <td style="color:var(--accent); font-weight:bold">$${fin.revenueUSD.toFixed(2)}</td>
+                <td>$${fin.transitUSD}</td>
+                <td>$${fin.fuelCostUSD.toFixed(2)}</td>
+                <td>$${fin.roadExpenseUSD.toFixed(2)}</td>
+                <td>
+                    <div class="extra-input-group">
+                        <input type="number" class="input-mini" id="ev-${id}" value="${o.manualExtra?.val || 0}">
+                        <select id="eu-${id}" style="font-size:10px">
+                            <option value="USD" ${o.manualExtra?.unit==='USD'?'selected':''}>$</option>
+                            <option value="ZMW" ${o.manualExtra?.unit==='ZMW'?'selected':''}>K</option>
+                        </select>
+                        <button class="btn-save" onclick="saveExtra('${id}')">存</button>
+                    </div>
+                </td>
+                <td><span class="badge-gp ${fin.gross >= 0 ? 'gp-pos' : 'gp-neg'}">$${fin.gross}</span></td>
+                <td>${dateStr}</td>
+            `;
+            tableBody.appendChild(row);
+        }
+    });
+}
+
+// 保存手动费用
+window.saveExtra = async (id) => {
+    const val = document.getElementById(`ev-${id}`).value;
+    const unit = document.getElementById(`eu-${id}`).value;
+    try {
+        await update(ref(db, `tms/completed_orders/${id}`), {
+            manualExtra: { val: Number(val), unit: unit }
+        });
+        alert("费用已更新");
+    } catch(e) { alert("失败: " + e.message); }
+};
+
+// 监听 completed_orders
+onValue(ref(db, "tms/completed_orders"), (snapshot) => {
+    allOrders = snapshot.val() || {};
+    render();
+});
+
+// 新增：同时监听 dispatch 以获取原始预设费用
+onValue(ref(db, "tms/dispatch"), (snapshot) => {
+    allDispatch = snapshot.val() || {};
+    render();
+});
+
+searchBtn.addEventListener('click', () => {
+    render(document.getElementById('dateFilter').value, document.getElementById('keyword').value);
+});
+
+document.getElementById('exportBtn').addEventListener('click', () => {
+    let csv = "\uFEFF订单号,客户,车牌,完成天数,里程,油耗,运费(USD),燃油成本(USD),路上费用(USD),其他费用(USD),毛利(USD),日期\n";
+    Object.values(allOrders).forEach(o => {
+        const f = computeFinance(o);
+        csv += `${o.orderId},${o.customer},${o.tractor},${f.days},${(o.loadedKm||0)+(o.emptyKm||0)},${f.liters},${f.revenueUSD.toFixed(2)},${f.fuelCostUSD.toFixed(2)},${f.roadExpenseUSD.toFixed(2)},${f.manualUSD.toFixed(2)},${f.gross},${new Date(o.archivedAt).toLocaleDateString()}\n`;
+    });
+    const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
+    const link = document.createElement("a");
+    link.href = URL.createObjectURL(blob);
+    link.download = `Report_${Date.now()}.csv`;
+    link.click();
+});
+</script>
+</body>
+</html>

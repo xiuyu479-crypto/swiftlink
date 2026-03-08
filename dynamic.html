@@ -1,0 +1,494 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>动态监控 - TMS 任务面板</title>
+<style>
+body{font-family:Arial,Helvetica,sans-serif;background:#f5f7fb;margin:0;color:#222}
+.header{padding:14px;text-align:center;background:linear-gradient(90deg,#0b74de,#2aa7ff);color:white}
+.container{max-width:1100px;margin:18px auto;padding:12px}
+.card{background:#fff;border-radius:8px;padding:12px;margin-bottom:12px;box-shadow:0 1px 4px rgba(0,0,0,0.06)}
+.customerHeader{display:flex;justify-content:space-between;align-items:center;cursor:pointer}
+.countBadge{background:#eee;padding:4px 8px;border-radius:999px;font-size:12px}
+.orderRow{display:flex;justify-content:space-between;align-items:center;padding:10px;border-radius:6px;border:1px solid #f0f0f0;margin-top:8px;background:#fff}
+.orderInfo{display:flex;gap:12px;align-items:flex-start;flex:1;min-width:0}
+.tag{padding:6px 8px;border-radius:6px;background:#0b74de;color:white;font-weight:600;flex:0 0 auto}
+.meta{font-size:13px;color:#333;line-height:1.3;overflow:hidden;text-overflow:ellipsis}
+.controls{display:flex;gap:8px;align-items:center;flex:0 0 auto;margin-left:12px}
+.smallBtn{padding:6px 8px;border-radius:6px;border:none;cursor:pointer;background:#eee}
+.nextBtn{background:#28a745;color:#fff}
+.backBtn{background:#ffc107;color:#fff}
+.toggleBtn{background:#e9eefc;color:#0b74de}
+.forceBtn{background:#ff6b6b;color:#fff}
+.detailBox{margin-top:6px;padding:12px;background:#fafafa;border-radius:6px;border:1px solid #eef;display:none}
+.timingItem{display:flex;justify-content:space-between;padding:6px 8px;border-radius:6px;background:#fff;margin-bottom:6px;border:1px solid #eee}
+.expenseList{margin-top:8px}
+.expenseItem{display:flex;justify-content:space-between;padding:6px;border-radius:6px;background:#fff;margin-bottom:6px;border:1px solid #eee}
+.expenseForm{display:flex;gap:8px;align-items:center;margin-top:8px}
+.expenseForm input{padding:6px;border-radius:6px;border:1px solid #ccc}
+.timerGreen{color:green;font-weight:700}
+.timerRed{color:red;font-weight:700}
+.empty{color:#999}
+
+/* --- 新增：异常汇报样式 --- */
+@keyframes flashRed { 0% { opacity: 1; } 50% { opacity: 0.7; } 100% { opacity: 1; } }
+.issueBtn { background: #e74c3c; color: white; animation: flashRed 2s infinite; font-weight: bold; display: flex; align-items: center; gap: 4px; }
+.issue-modal { display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.5); z-index: 2000; align-items: center; justify-content: center; }
+.issue-content { background: white; width: 90%; max-width: 500px; padding: 20px; border-radius: 12px; max-height: 80vh; display: flex; flex-direction: column; box-shadow: 0 5px 15px rgba(0,0,0,0.3); }
+.issue-header { font-size: 18px; font-weight: bold; margin-bottom: 15px; color: #e74c3c; display: flex; justify-content: space-between; align-items: center; }
+.issue-list { flex: 1; overflow-y: auto; margin-bottom: 15px; border: 1px solid #eee; background: #fafafa; border-radius: 8px; padding: 10px; }
+.issue-item { background: #fff; padding: 10px; border-radius: 8px; border: 1px solid #eee; margin-bottom: 10px; position: relative; }
+.issue-item:last-child { margin-bottom: 0; }
+.issue-ts { font-size: 12px; color: #999; margin-bottom: 4px; }
+.issue-msg { font-size: 15px; color: #333; line-height: 1.4; word-break: break-all; }
+.issue-actions { display: flex; gap: 10px; }
+.btn-resolve { flex: 1; background: #27ae60; color: white; padding: 10px; border: none; border-radius: 6px; font-weight: bold; cursor: pointer; }
+.btn-close { flex: 1; background: #eee; color: #333; padding: 10px; border: none; border-radius: 6px; font-weight: bold; cursor: pointer; }
+</style>
+<link rel="stylesheet" href="./assets/css/style.css">
+<script type="module" src="./assets/js/firebase.js"></script>
+</head>
+<body>
+<script>
+// --- 修复点：移除了 "uki1998" 硬编码，改为通用校验 ---
+if(!localStorage.getItem("tms_auth")){
+  const page = location.pathname.split('/').pop();
+  window.location.href = "password.html?redirect=" + encodeURIComponent(page);
+}
+</script>
+
+<div style="position:fixed;top:15px;left:15px;z-index:999;">
+  <button onclick="window.location.href='index.html'">返回主页面</button>
+</div>
+
+<div class="header"><h2 id="headerTitle">动态监控</h2><div id="headerSub" style="font-size:13px">按客户分组，实时监控车辆状态与计时</div></div>
+<div class="container" id="app">
+  <div id="loading" class="card">正在连接 Firebase 并加载订单...</div>
+  <div id="customers"></div>
+</div>
+
+<div class="issue-modal" id="issueModal">
+  <div class="issue-content">
+    <div class="issue-header">
+      <span id="issueHeader">⚠️ 异常汇报历史</span>
+      <span id="issueSub" style="font-size:12px; color:#999; font-weight:normal;">(来自司机端)</span>
+    </div>
+    <div class="issue-list" id="issueListContainer">
+      </div>
+    <div class="issue-actions">
+      <button class="btn-resolve" id="btnResolveIssue">标记已阅/消除警报</button>
+      <button class="btn-close" id="btnCloseIssue">关闭</button>
+    </div>
+  </div>
+</div>
+
+<script type="module">
+import { initializeApp } from "https://www.gstatic.com/firebasejs/9.23.0/firebase-app.js";
+import { getDatabase, ref, onValue, set, update, remove, get } from "https://www.gstatic.com/firebasejs/9.23.0/firebase-database.js";
+
+const firebaseConfig = {
+  apiKey: "AIzaSyDEbePpsrXwD8Okqa93UOGUFE37c8SFHS0",
+  authDomain: "cjsmartcargo-datebase.firebaseapp.com",
+  databaseURL: "https://cjsmartcargo-datebase-default-rtdb.firebaseio.com",
+  projectId: "cjsmartcargo-datebase",
+  storageBucket: "cjsmartcargo-datebase.firebasestorage.app",
+  messagingSenderId: "751451468006",
+  appId: "1:751451468006:web:a3cbd33cf3c2b29f624b27"
+};
+const app = initializeApp(firebaseConfig);
+const db = getDatabase(app);
+
+const ORDERS_PATH = 'tms/orders';
+const COMPLETED_PATH = 'tms/completed_orders';
+const EXPANDED_KEY = 'tms_expanded_orders';
+const CUS_EXPANDED_KEY = 'tms_cus_expanded';
+
+// lang setup
+let lang = localStorage.getItem('tms_lang') || 'zh';
+const trans = (zh, en) => lang === 'en' ? en : zh;
+
+// STATES by type with translations, matched to driver side
+const STATES_BY_TYPE = {
+  cross_border: [
+    {key:'confirmed', zh_label:'确认发车', en_label:'Heading to Pickup', zh_note:'正在前往装货点', en_note:'Heading to Pickup'},
+    {key:'arrived_pickup', zh_label:'抵达装货点', en_label:'Loading in Progress', zh_note:'等待装货中', en_note:'Loading in Progress'},
+    {key:'loaded', zh_label:'已完成装货', en_label:'Waiting for Docs', zh_note:'等待文件中', en_note:'Waiting for Docs'},
+    {key:'documents_ready', zh_label:'文件已就绪开始运输', en_label:'Heading to Border', zh_note:'正在运输中', en_note:'Heading to Border'},
+    {key:'arrived_border', zh_label:'抵达边境', en_label:'Clearing Customs', zh_note:'等待过境中', en_note:'Clearing Customs'},
+    {key:'cleared_border', zh_label:'已清关', en_label:'Crossing Border', zh_note:'正在过境', en_note:'Crossing Border'},
+    {key:'crossed_border', zh_label:'已过境', en_label:'Heading to Dropoff', zh_note:'正在前往卸货点', en_note:'Heading to Dropoff'},
+    {key:'arrived_dropoff', zh_label:'抵达卸货点', en_label:'Unloading', zh_note:'待卸货', en_note:'Unloading'},
+    {key:'unloaded', zh_label:'卸货完成并完成订单', en_label:'Order Complete', zh_note:'归档中', en_note:'Order Complete'},
+    {key:'archived', zh_label:'归档并完结', en_label:'Completed', zh_note:'完结', en_note:'Completed'},
+  ],
+  domestic: [
+    {key:'confirmed', zh_label:'确认发车', en_label:'Heading to Pickup', zh_note:'正在前往装货点', en_note:'Heading to Pickup'},
+    {key:'arrived_pickup', zh_label:'抵达装货点', en_label:'Loading in Progress', zh_note:'等待装货中', en_note:'Loading in Progress'},
+    {key:'loaded', zh_label:'已完成装货', en_label:'Waiting for Release', zh_note:'等待释放', en_note:'Waiting for Release'},
+    {key:'released', zh_label:'已释放', en_label:'Heading to Dropoff', zh_note:'正在前往卸货点', en_note:'Heading to Dropoff'},
+    {key:'arrived_dropoff', zh_label:'抵达卸货点', en_label:'Unloading', zh_note:'待卸货', en_note:'Unloading'},
+    {key:'unloaded', zh_label:'卸货完成并完成订单', en_label:'Order Complete', zh_note:'归档中', en_note:'Order Complete'},
+    {key:'archived', zh_label:'归档并完结', en_label:'Completed', zh_note:'完结', en_note:'Completed'},
+  ]
+};
+
+function getStates(orderType) {
+  const type = orderType || 'cross_border';
+  return STATES_BY_TYPE[type].map(s => ({
+    key: s.key,
+    label: lang === 'en' ? s.en_label : s.zh_label,
+    note: lang === 'en' ? s.en_note : s.zh_note
+  }));
+}
+
+// helpers
+function el(tag, cls, html){ const e=document.createElement(tag); if(cls) e.className=cls; if(html!==undefined) e.innerHTML=html; return e; }
+function now(){ return Date.now(); }
+function fmtTime(ms){ if(!ms) return '--'; const s=Math.floor(ms/1000); const h=Math.floor(s/3600); const m=Math.floor((s%3600)/60); const sec=s%60; return (h? h+'h ':'') + m + 'm ' + sec + 's'; }
+function durationClass(ms){ if(ms>12*3600*1000) return 'timerRed'; return 'timerGreen'; }
+function getExpanded(){ try{ return new Set(JSON.parse(localStorage.getItem(EXPANDED_KEY)||'[]')); }catch(e){return new Set();} }
+function saveExpanded(s){ try{ localStorage.setItem(EXPANDED_KEY, JSON.stringify(Array.from(s))); }catch(e){} }
+function getCusExpanded(){ try{ return new Set(JSON.parse(localStorage.getItem(CUS_EXPANDED_KEY)||'[]')); }catch(e){return new Set();} }
+function saveCusExpanded(s){ try{ localStorage.setItem(CUS_EXPANDED_KEY, JSON.stringify(Array.from(s))); }catch(e){} }
+function escapeHtml(s){ if(s==null) return ''; return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;'); }
+
+// live timer updater
+setInterval(()=>{
+  const nowTs = Date.now();
+  document.querySelectorAll('[data-timer-start]').forEach(el=>{
+    const start = Number(el.getAttribute('data-timer-start'))||0;
+    const running = el.getAttribute('data-timer-running')==='1';
+    if(running && start){
+      const s = Math.floor((nowTs - start)/1000);
+      const h = Math.floor(s/3600); const m = Math.floor((s%3600)/60); const sec = s%60;
+      el.textContent = (h? h+':':'') + String(m).padStart(2,'0') + ':' + String(sec).padStart(2,'0');
+    }
+  });
+},1000);
+
+// translate static elements
+document.getElementById('headerTitle').textContent = trans('动态监控', 'Dynamic Monitoring');
+document.getElementById('headerSub').textContent = trans('按客户分组，实时监控车辆状态与计时', 'Grouped by Customer, Real-time Vehicle Status and Timing');
+document.getElementById('loading').textContent = trans('正在连接 Firebase 并加载订单...', 'Connecting to Firebase and loading orders...');
+document.getElementById('issueHeader').textContent = trans('⚠️ 异常汇报历史', '⚠️ Issue Report History');
+document.getElementById('issueSub').textContent = trans('(来自司机端)', '(From Driver)');
+document.getElementById('btnResolveIssue').textContent = trans('标记已阅/消除警报', 'Mark as Read/Resolve Alert');
+document.getElementById('btnCloseIssue').textContent = trans('关闭', 'Close');
+
+// add lang switch button
+const switchBtn = document.createElement('button');
+switchBtn.textContent = lang === 'en' ? '切换到中文' : 'Switch to English';
+switchBtn.style.marginLeft = '10px';
+switchBtn.onclick = () => {
+  localStorage.setItem('tms_lang', lang === 'en' ? 'zh' : 'en');
+  location.reload();
+};
+document.querySelector('div[style="position:fixed;top:15px;left:15px;z-index:999;"]').appendChild(switchBtn);
+
+// fetch and render
+const ordersRef = ref(db, ORDERS_PATH);
+onValue(ordersRef, snap=>{
+  const data = snap.val() || {};
+  document.getElementById('loading').style.display = 'none';
+  const grouped = groupByCustomer(data);
+  renderCustomers(grouped);
+});
+
+// group
+function groupByCustomer(data){
+  const map = {};
+  Object.entries(data).forEach(([id,order])=>{
+    order._id = id;
+    order.statusStep = order.statusStep || 1;
+    order.statusTimestamps = order.statusTimestamps || order.statusTimestamps || {};
+    order.durations = order.durations || {};
+    order.expenses = order.expenses || order.expenses || [];
+    const key = order.customer || '未命名客户';
+    if(!map[key]) map[key]=[];
+    map[key].push(order);
+  });
+  return map;
+}
+
+function renderCustomers(map){
+  const container = document.getElementById('customers');
+  container.innerHTML = '';
+  const cusExpanded = getCusExpanded();
+  Object.keys(map).sort().forEach(customer=>{
+    const card = el('div','card');
+    const header = el('div','customerHeader');
+    const title = el('div');
+    title.innerHTML = '<strong>'+escapeHtml(customer)+'</strong> <span class="countBadge">'+map[customer].length + trans(' 个任务', ' Tasks')+'</span>';
+    header.appendChild(title);
+    const toggle = el('button','smallBtn toggleBtn', cusExpanded.has(customer)?trans('收起','Collapse'):'展开','Expand');
+    header.appendChild(toggle);
+    card.appendChild(header);
+
+    const list = el('div','');
+    list.style.display = cusExpanded.has(customer)?'block':'block'; // keep expanded by default
+    map[customer].forEach(order=>{
+      const frag = renderOrderRow(order);
+      list.appendChild(frag);
+    });
+
+    toggle.addEventListener('click', ()=>{
+      const is = list.style.display === 'block';
+      list.style.display = is ? 'none' : 'block';
+      toggle.textContent = is ? trans('展开','Expand') : trans('收起','Collapse');
+      if(is) { cusExpanded.delete(customer); } else { cusExpanded.add(customer); }
+      saveCusExpanded(cusExpanded);
+    });
+
+    card.appendChild(list);
+    container.appendChild(card);
+  });
+}
+
+function renderOrderRow(order){
+  const STATES = getStates(order.orderType);
+  const row = el('div','orderRow');
+  const info = el('div','orderInfo');
+
+  const plateText = order.tractor || order.trailer || order.plate || '';
+  const tag = el('div','tag', escapeHtml(plateText));
+  const pickup = order.pickupAddr || order.loadAddr || '';
+  const dropoff = order.dropoffAddr || '';
+  const typeTag = order.orderType === 'domestic' ? `<span class="order-type-tag">${trans('境内','Domestic')}</span>` : `<span class="order-type-tag">${trans('跨境','Cross-Border')}</span>`;
+  const meta = el('div','meta', '<div><strong>'+escapeHtml(plateText)+'</strong>' + typeTag + ' &nbsp; <span style="color:#666">'+escapeHtml(order.driver||'')+'</span></div><div style="font-size:12px;color:#444">'+escapeHtml(pickup)+' → '+escapeHtml(dropoff)+'</div>');
+  info.appendChild(tag); info.appendChild(meta);
+  row.appendChild(info);
+
+  const right = el('div','controls');
+  // current state display
+  const current = STATES[(order.statusStep||1)-1] || STATES[0];
+  const ts = order.statusTimestamps && order.statusTimestamps[current.key];
+  let elapsed = 0; if(ts && ts.start) elapsed = now() - ts.start;
+  const timeBox = el('div','', '<div class="'+durationClass(elapsed)+'" style="font-weight:700">'+escapeHtml(current.label)+'</div><div style="font-size:12px;color:#666" data-timer-start="'+(ts&&ts.start?ts.start:0)+'" data-timer-running="'+(ts&&ts.start?1:0)+'">'+(ts&&ts.start?('已用: '+fmtTime(elapsed)):'<span class="empty">'+trans('未开始计时','Not Started')+'</span>')+'</div>');
+  right.appendChild(timeBox);
+
+  // --- 新增：检测是否有活跃异常 ---
+  if(order.hasActiveIssue) {
+    const issueCount = order.issues ? order.issues.length : 0;
+    const issueBtn = el('button', 'smallBtn issueBtn', '⚠️ ' + trans('异常','Issues') + ' (' + issueCount + ')');
+    issueBtn.onclick = (e) => {
+      e.stopPropagation();
+      openIssueModal(order);
+    };
+    right.appendChild(issueBtn);
+  }
+  // --- 新增结束 ---
+
+  const nextBtn = el('button','smallBtn nextBtn',trans('下一状态','Next Status'));
+  const backBtn = el('button','smallBtn backBtn',trans('回退','Back'));
+  const detailBtn = el('button','smallBtn toggleBtn',trans('详情','Details'));
+  const forceBtn = el('button','smallBtn forceBtn',trans('强制归档','Force Archive'));
+  right.appendChild(nextBtn); right.appendChild(backBtn); right.appendChild(detailBtn); right.appendChild(forceBtn);
+
+  row.appendChild(right);
+
+  // detail (sibling)
+  const detail = el('div','detailBox');
+  const expanded = getExpanded();
+  detail.style.display = expanded.has(order._id)?'block':'none';
+
+  // timing list
+  const timingTitle = el('div','','<strong>'+trans('时效记录','Timing Records')+'</strong>');
+  detail.appendChild(timingTitle);
+  const timingList = el('div','', '');
+  STATES.forEach(s => {
+    const d = order.durations && order.durations[s.key];
+    const st = order.statusTimestamps && order.statusTimestamps[s.key];
+    const running = st && st.start && !st.end;
+    const timDiv = el('div','timingItem','<div style="font-weight:600">'+s.label+'</div><div style="font-size:13px;color:#666">'+(d?fmtTime(d):(running? trans('进行中: ','In Progress: ') + '<span data-timer-start="'+st.start+'" data-timer-running="1">00:00</span>':'--'))+'</div>');
+    timingList.appendChild(timDiv);
+  });
+  detail.appendChild(timingList);
+
+  // expenses area with toggle
+  const expHeader = el('div','', '<strong>'+trans('费用','Expenses')+'</strong>');
+  detail.appendChild(expHeader);
+  const expToggleRow = el('div','', '');
+  const expToggle = el('button','smallBtn toggleBtn',trans('查看/添加费用','View/Add Expenses'));
+  expToggleRow.appendChild(expToggle);
+  detail.appendChild(expToggleRow);
+
+  const expenseBox = el('div','');
+  expenseBox.style.display = 'none';
+  const expList = el('div','expenseList','');
+  expenseBox.appendChild(expList);
+  const expForm = el('div','expenseForm','<input class="expName" placeholder="'+trans('费用名称','Expense Name')+'"><input class="expAmt" placeholder="'+trans('金额','Amount')+'" type="number" step="0.01"><button class="smallBtn addExpBtn">'+trans('添加','Add')+'</button>');
+  expenseBox.appendChild(expForm);
+  detail.appendChild(expenseBox);
+
+  // populate expList
+  function refreshExpList(){
+    expList.innerHTML = '';
+    const arr = order.expenses || [];
+    if(!arr.length) { expList.innerHTML = '<div class="empty">'+trans('暂无费用','No Expenses')+'</div>'; return; }
+    arr.forEach(it=>{
+      const ei = el('div','expenseItem','<div>'+escapeHtml(it.name)+'</div><div>'+escapeHtml(it.amount||0)+'</div>');
+      expList.appendChild(ei);
+    });
+  }
+  refreshExpList();
+
+  // wire exp toggle
+  expToggle.addEventListener('click', ()=>{
+    expenseBox.style.display = expenseBox.style.display==='none'?'block':'none';
+  });
+
+  // add expense handler
+  expForm.querySelector('.addExpBtn').addEventListener('click', async ()=>{
+    const name = expForm.querySelector('.expName').value.trim();
+    const amt = parseFloat(expForm.querySelector('.expAmt').value) || 0;
+    if(!name) return alert(trans('请输入费用名称','Please enter expense name'));
+    const newArr = (order.expenses || []).slice();
+    newArr.push({name, amount: amt, time: now()});
+    try{
+      await update(ref(db, ORDERS_PATH + '/' + order._id), {expenses: newArr});
+      // update local order for immediate UI refresh
+      order.expenses = newArr;
+      expForm.querySelector('.expName').value='';
+      expForm.querySelector('.expAmt').value='';
+      refreshExpList();
+    }catch(e){
+      console.error(e);
+      alert(trans('添加失败','Add failed'));
+    }
+  });
+
+  // toggle detail by button or click on info
+  function toggleDetailFunc(){
+    const ex = getExpanded();
+    const is = detail.style.display === 'block';
+    detail.style.display = is ? 'none' : 'block';
+    if(is) ex.delete(order._id); else ex.add(order._id);
+    saveExpanded(ex);
+  }
+  detailBtn.addEventListener('click', (e)=>{ e.stopPropagation(); toggleDetailFunc(); });
+  info.addEventListener('click', (e)=>{ if(e.target.tagName.toLowerCase()!=='button') toggleDetailFunc(); });
+
+  // next/back handlers (prevent triggering detail toggle)
+  nextBtn.addEventListener('click', async (e)=>{ e.stopPropagation(); await advanceState(order, true); });
+  backBtn.addEventListener('click', async (e)=>{ e.stopPropagation(); await advanceState(order, false); });
+
+  // force archive
+  forceBtn.addEventListener('click', async (e)=>{ e.stopPropagation(); if(!confirm(trans('确认强制归档此订单？','Confirm force archive this order?'))) return; try{ const nowTs = now(); await set(ref(db, COMPLETED_PATH + '/' + order._id), Object.assign({}, order, {archivedAt: nowTs})); await remove(ref(db, ORDERS_PATH + '/' + order._id)); alert(trans('已强制归档','Force archived')); }catch(err){ console.error(err); alert(trans('归档失败','Archive failed')); } });
+
+  const frag = document.createDocumentFragment();
+  frag.appendChild(row);
+  frag.appendChild(detail);
+  return frag;
+}
+
+async function advanceState(order, forward=true){
+  const STATES = getStates(order.orderType);
+  const current = order.statusStep || 1;
+  let target = forward ? current + 1 : current - 1;
+  if(target < 1) target = 1;
+  if(target > STATES.length) target = STATES.length;
+  const nowTs = now();
+  const timestamps = order.statusTimestamps || {};
+  const durations = order.durations || {};
+
+  if(forward){
+    const currKey = STATES[current-1].key;
+    if(timestamps[currKey] && timestamps[currKey].start){
+      const elapsed = nowTs - timestamps[currKey].start;
+      durations[currKey] = (durations[currKey]||0) + elapsed;
+      timestamps[currKey].end = nowTs;
+      delete timestamps[currKey].start;
+    }
+    const nextKey = STATES[target-1].key;
+    timestamps[nextKey] = timestamps[nextKey] || {};
+    timestamps[nextKey].start = nowTs;
+  } else {
+    const currKey = STATES[current-1].key;
+    if(timestamps[currKey] && timestamps[currKey].start){
+      const elapsed = nowTs - timestamps[currKey].start;
+      durations[currKey] = (durations[currKey]||0) + elapsed;
+      timestamps[currKey].end = nowTs;
+      delete timestamps[currKey].start;
+    }
+    const prevKey = STATES[target-1].key;
+    timestamps[prevKey] = timestamps[prevKey] || {};
+    timestamps[prevKey].start = nowTs;
+  }
+
+  const updates = { statusStep: target, statusTimestamps: timestamps, durations: durations };
+  try{
+    await update(ref(db, ORDERS_PATH + '/' + order._id), updates);
+    if(target === STATES.length){
+      const completedRef = COMPLETED_PATH + '/' + order._id;
+      await set(ref(db, completedRef), Object.assign({}, order, updates, {archivedAt: nowTs}));
+      await remove(ref(db, ORDERS_PATH + '/' + order._id));
+    }
+  }catch(e){
+    console.error('advanceState error', e);
+    alert(trans('状态更新失败','Status update failed'));
+  }
+}
+
+/* --- 新增：异常弹窗逻辑 --- */
+const issueModal = document.getElementById('issueModal');
+const issueListContainer = document.getElementById('issueListContainer');
+const btnResolveIssue = document.getElementById('btnResolveIssue');
+const btnCloseIssue = document.getElementById('btnCloseIssue');
+let activeIssueOrderId = null;
+
+function openIssueModal(order) {
+    activeIssueOrderId = order._id;
+    issueModal.style.display = 'flex';
+    issueListContainer.innerHTML = '';
+    
+    // 获取异常列表并渲染 (倒序，最新的在上面)
+    const issues = order.issues || [];
+    if(issues.length === 0) {
+        issueListContainer.innerHTML = '<div style="text-align:center;color:#999;padding:20px;">'+trans('无历史记录','No History Records')+'</div>';
+    } else {
+        // 深拷贝并反转，让最新的显示在最上面
+        const sortedIssues = [...issues].reverse();
+        sortedIssues.forEach(issue => {
+            const item = document.createElement('div');
+            item.className = 'issue-item';
+            // 兼容 dateStr 或 timestamp
+            let timeStr = issue.dateStr;
+            if(!timeStr && issue.timestamp) timeStr = new Date(issue.timestamp).toLocaleString();
+            
+            item.innerHTML = `
+                <div class="issue-ts">🕒 ${escapeHtml(timeStr)}</div>
+                <div class="issue-msg">${escapeHtml(issue.message)}</div>
+            `;
+            issueListContainer.appendChild(item);
+        });
+    }
+}
+
+btnCloseIssue.onclick = () => {
+    issueModal.style.display = 'none';
+    activeIssueOrderId = null;
+};
+
+// 标记已阅/消除警报逻辑
+btnResolveIssue.onclick = async () => {
+    if(!activeIssueOrderId) return;
+    try {
+        await update(ref(db, ORDERS_PATH + '/' + activeIssueOrderId), {
+            hasActiveIssue: false // 将活跃异常标志设为false，红色感叹号将消失
+        });
+        issueModal.style.display = 'none';
+        activeIssueOrderId = null;
+    } catch(e) {
+        alert(trans("操作失败: ","Operation failed: ") + e.message);
+    }
+};
+
+</script>
+
+<script>
+(function(){ const urlParams=new URLSearchParams(window.location.search); const lang=urlParams.get('lang'); if(lang) localStorage.setItem('tms_lang', lang); })();
+</script>
+
+</body>
+</html>

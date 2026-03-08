@@ -1,0 +1,293 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<title>CJ SmartCargo Zambia TMS</title>
+<meta name="viewport" content="width=device-width, initial-scale=1">
+
+<style>
+body {
+    margin:0;
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial;
+    background: linear-gradient(135deg, #e9f3ff 0%, #dbe9ff 100%);
+    min-height:100vh;
+}
+
+/* Language Switch */
+.langSwitch {
+    position:fixed;
+    top:14px;
+    right:18px;
+    z-index:10000;
+}
+.langBtn {
+    padding:8px 16px;
+    border-radius:20px;
+    border:none;
+    background:rgba(255,255,255,0.55);
+    backdrop-filter: blur(8px);
+    color:#1e63d8;
+    cursor:pointer;
+    font-size:14px;
+    box-shadow:0 2px 4px rgba(0,0,0,0.1);
+}
+
+/* Logout Button */
+.logoutBtn {
+    position:absolute;
+    top:14px; 
+    left:18px;
+    padding:6px 12px;
+    background:rgba(0,0,0,0.05);
+    border:none;
+    border-radius:8px;
+    font-size:12px;
+    cursor:pointer;
+    z-index: 1000;
+}
+
+/* Header */
+.header {
+    color:#1f4e92;
+    font-weight:600;
+    padding:40px 26px 20px 26px;
+    text-align:center;
+    font-size:26px;
+    letter-spacing:1px;
+}
+
+/* Grid Container */
+.container {
+    max-width:1000px;
+    margin:0 auto;
+    padding:20px;
+    display:grid;
+    grid-template-columns: repeat(3, 1fr); 
+    grid-gap:20px;
+}
+
+@media (max-width: 600px) {
+    .container {
+        grid-template-columns: repeat(auto-fill, minmax(160px, 1fr));
+        grid-gap: 15px;
+    }
+}
+
+/* Card Style */
+.card {
+    background:rgba(255,255,255,0.7);
+    backdrop-filter: blur(12px);
+    border-radius:20px;
+    padding:30px 15px;
+    text-align:center;
+    font-size:17px;
+    font-weight:600;
+    color:#1e63d8;
+    cursor:pointer;
+    box-shadow:0 6px 14px rgba(0,0,0,0.1);
+    transition: all 0.25s;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+}
+.card:hover {
+    transform:translateY(-6px);
+    box-shadow:0 10px 20px rgba(0,0,0,0.15);
+    background:rgba(255,255,255,0.9);
+}
+
+.card img {
+    width:44px;
+    height:44px;
+    margin-bottom:12px;
+    opacity:0.9;
+}
+</style>
+</head>
+
+<body>
+
+<button class="logoutBtn" onclick="localStorage.removeItem('tms_auth'); localStorage.removeItem('tms_role'); window.location.href='password.html';">Logout / Exit</button>
+
+<script>
+/**
+ * 逻辑检查点 1：防止重复验证
+ * 只要 localStorage 里有有效的 tms_auth，就不跳转到登录页
+ */
+const authToken = localStorage.getItem("tms_auth");
+const userRole = localStorage.getItem("tms_role");
+
+if(!authToken) {
+    // 只有没登录时才去 password.html
+    const page = location.pathname.split('/').pop() || "index.html";
+    window.location.href = "password.html?redirect=" + encodeURIComponent(page);
+}
+</script>
+
+<div class="langSwitch">
+    <button class="langBtn" onclick="switchLang()"><span id='langLabel'>English</span></button>
+</div>
+
+<div class="header" id="mainTitle">TMS 综合管理系统</div>
+
+<div class="container">
+    <div class="card" onclick="go('neworders.html')" id="btnNew">
+        <img src="https://img.icons8.com/ios-filled/50/1e63d8/plus-2-math.png">
+        新建订单
+    </div>
+    <div class="card" onclick="go('dispatch.html')" id="btn1">
+        <img src="https://img.icons8.com/ios-filled/50/1e63d8/truck.png">
+        派车单制作
+    </div>
+    <div class="card" onclick="go('dynamic.html')" id="btn2">
+        <img src="https://img.icons8.com/ios-filled/50/1e63d8/dashboard.png">
+        动态监控
+    </div>
+    <div class="card" onclick="go('vehicles.html')" id="btn3">
+        <img src="https://img.icons8.com/ios-filled/50/1e63d8/car.png">
+        车辆档案
+    </div>
+    <div class="card" onclick="go('oa.html')" id="btn4">
+        <img src="https://img.icons8.com/ios-filled/50/1e63d8/driver.png">
+        流程申请
+    </div>
+    <div class="card" onclick="go('completed.html')" id="btn5">
+        <img src="https://img.icons8.com/ios-filled/50/1e63d8/document.png">
+        已完成订单记录
+    </div>
+    <div class="card" onclick="go('maintenance.html')" id="btn6">
+        <img src="https://img.icons8.com/ios-filled/50/1e63d8/services.png">
+        车辆维护
+    </div>
+    <div class="card" onclick="go('tracking.html')" id="btn7">
+        <img src="https://img.icons8.com/ios-filled/50/1e63d8/copy.png">
+        客户追踪共享
+    </div>
+    <div class="card" onclick="go('fleetcost.html')" id="btn8">
+        <img src="https://img.icons8.com/ios-filled/50/1e63d8/money.png">
+        车队费用统计
+    </div>
+    <div class="card" onclick="go('billing.html')" id="btn9">
+        <img src="https://img.icons8.com/ios-filled/50/1e63d8/bill.png">
+        客户账单
+    </div>
+    <div class="card" onclick="go('attendance.html')" id="btn10">
+        <img src="https://img.icons8.com/ios-filled/50/1e63d8/map.png">
+        GPS 车辆追踪
+    </div>
+    <div class="card" onclick="go('clients.html')" id="btnClients">
+        <img src="https://img.icons8.com/ios-filled/50/1e63d8/conference-call.png">
+        客户信息
+    </div>
+</div>
+
+<script>
+let currentLang = localStorage.getItem('tms_lang') || "zh";
+
+/**
+ * 逻辑检查点 2：跳转拦截
+ * 这里的逻辑是：点击图标 -> 检查角色 -> 允许则跳转，不允许则弹窗。
+ * 绝对不会在这里要求输入密码，因为 userRole 已经在登录时存好了。
+ */
+function go(url){
+    const role = localStorage.getItem("tms_role");
+
+    // 管理员 (admin) 拥有所有权限，直接过
+    if (role === 'admin') {
+        window.location.href = url + '?lang=' + currentLang;
+        return;
+    }
+
+    // 员工 (staff) 权限拦截：不能进 费用统计 和 客户账单
+    if (role === 'staff') {
+        if (url === 'fleetcost.html' || url === 'billing.html') {
+            alert(currentLang === "zh" ? "权限不足：该模块仅限管理员。" : "Access Denied: Admin only.");
+            return;
+        }
+    }
+
+    // 访客 (viewer) 权限拦截：不能进 新建订单、费用统计、客户账单、客户信息
+    if (role === 'viewer') {
+        const restricted = ['neworders.html', 'fleetcost.html', 'billing.html', 'clients.html'];
+        if (restricted.includes(url)) {
+            alert(currentLang === "zh" ? "权限不足：访客无法访问此功能。" : "Access Denied: Restricted for viewers.");
+            return;
+        }
+    }
+
+    // 默认跳转
+    window.location.href = url + '?lang=' + currentLang; 
+}
+
+const langPack = {
+    zh:{
+        langLabel:"English",
+        mainTitle:"TMS 综合管理系统",
+        btnNew: "新建订单",
+        btn1:"派车单制作",
+        btn2:"动态监控",
+        btn3:"车辆档案",
+        btn4:"OA流程申请",
+        btn5:"已完成订单记录",
+        btn6:"车辆维护",
+        btn7:"客户追踪",
+        btn8:"车队费用统计",
+        btn9:"客户账单",
+        btn10:"考勤报告",
+        btnClients: "客户信息"
+    },
+    en:{
+        langLabel:"中文",
+        mainTitle:"TMS Management System",
+        btnNew: "New Order",
+        btn1:"Dispatch Order",
+        btn2:"Dynamic Monitoring",
+        btn3:"Vehicle Archive",
+        btn4:"Application Process",
+        btn5:"Completed Orders",
+        btn6:"Maintenance",
+        btn7:"Clients tracking",
+        btn8:"Fleet Cost",
+        btn9:"Client Billing",
+        btn10:"Attendance",
+        btnClients: "Clients Info"
+    }
+};
+
+function switchLang(){ 
+    currentLang = currentLang === "zh" ? "en" : "zh"; 
+    localStorage.setItem('tms_lang', currentLang); 
+    applyLang(); 
+}
+
+function applyLang(){
+    const t = langPack[currentLang];
+    document.getElementById("langLabel").innerText = t.langLabel;
+    document.getElementById("mainTitle").innerText = t.mainTitle;
+
+    updateCard("btnNew", t.btnNew, "plus-2-math.png");
+    updateCard("btn1", t.btn1, "truck.png");
+    updateCard("btn2", t.btn2, "dashboard.png");
+    updateCard("btn3", t.btn3, "car.png");
+    updateCard("btn4", t.btn4, "driver.png");
+    updateCard("btn5", t.btn5, "document.png");
+    updateCard("btn6", t.btn6, "services.png");
+    updateCard("btn7", t.btn7, "copy.png");
+    updateCard("btn8", t.btn8, "money.png");
+    updateCard("btn9", t.btn9, "bill.png");
+    updateCard("btn10", t.btn10, "map.png");
+    updateCard("btnClients", t.btnClients, "conference-call.png");
+}
+
+function updateCard(id, text, iconName){
+    const el = document.getElementById(id);
+    if(el){
+        el.innerHTML = `<img src="https://img.icons8.com/ios-filled/50/1e63d8/${iconName}">${text}`;
+    }
+}
+
+window.onload = applyLang;
+</script>
+</body>
+</html>

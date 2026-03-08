@@ -1,0 +1,537 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<title>派车单制作 · TMS</title>
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<style>
+body{margin:0;font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Helvetica,Arial;background:linear-gradient(135deg,#e9f3ff 0%,#dbe9ff 100%);color:#123}
+.header{padding:20px;text-align:center;color:#1f4e92;font-weight:600;font-size:22px}
+.container{max-width:980px;margin:18px auto;padding:14px}
+.card{background:rgba(255,255,255,0.78);backdrop-filter:blur(10px);border-radius:14px;padding:14px;margin-bottom:14px;box-shadow:0 8px 20px rgba(0,0,0,0.08)}
+.grid{display:grid;grid-template-columns:repeat(2,1fr);gap:12px}
+.field label{display:block;font-size:13px;color:#456;margin-bottom:6px}
+.input, textarea, select{width:100%;padding:10px;border-radius:10px;border:1px solid rgba(30,99,216,0.12);box-sizing:border-box;background:rgba(255,255,255,0.9)}
+textarea{min-height:120px}
+.actions{display:flex;gap:12px;justify-content:center;margin-top:10px}
+.btn{padding:12px 18px;border-radius:12px;border:none;background:#1e63d8;color:#fff;font-weight:600;cursor:pointer;box-shadow:0 6px 14px rgba(30,99,216,0.12)}
+.btn.secondary{background:rgba(255,255,255,0.9);color:#1e63d8;border:1px solid rgba(30,99,216,0.12)}
+.small{font-size:13px;padding:8px 10px;border-radius:10px}
+.fuelBox{padding:10px;border-radius:10px;background:rgba(255,255,255,0.95);font-weight:700;color:#d9534f;text-align:center}
+.langSwitch{position:fixed;top:14px;right:18px; z-index: 1000;}
+.langBtn{padding:8px 14px;border-radius:20px;border:none;background:rgba(255,255,255,0.6);cursor:pointer;color:#1e63d8;font-weight:bold;}
+.suggest-box {position: absolute;background: white;border: 1px solid #ddd;border-radius: 8px;z-index: 9999;max-height: 180px;overflow-y: auto;box-shadow: 0 4px 10px rgba(0,0,0,0.1);}
+.suggest-item {padding: 8px 12px;cursor: pointer;}
+.suggest-item:hover {background: #f0f4ff;}
+
+/* 新增：分享弹窗样式 */
+#shareModal {
+  display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%;
+  background: rgba(0,0,0,0.6); z-index: 10001; align-items: center; justify-content: center;
+}
+.modal-content {
+  background: #fff; padding: 25px; border-radius: 20px; width: 85%; max-width: 400px; text-align: center;
+}
+#qrcode { margin: 20px auto; width: 200px; height: 200px; background: #eee; display: flex; align-items: center; justify-content: center; overflow: hidden; }
+.url-box { 
+  background: #f0f4ff; padding: 10px; border-radius: 8px; font-size: 12px; 
+  word-break: break-all; margin: 15px 0; border: 1px dashed #1e63d8; text-align: left;
+}
+
+@media(max-width:720px){.grid{grid-template-columns:1fr}}
+</style>
+</head>
+<body>
+
+<div id="suggestContainer"></div>
+
+<div style="position:fixed;top:15px;left:15px;z-index:999;">
+  <button onclick="window.location.href='neworders.html'" class="btn secondary small" data-key="backToList">返回列表</button>
+</div>
+
+<div class="langSwitch">
+  <button class="langBtn" id="langToggle">English</button>
+</div>
+
+<div class="header" id="pageTitle" data-key="pageTitle">派车单制作</div>
+<div style="max-width:980px;margin:8px auto;padding:6px 14px">
+  <strong data-key="dispatchOrderId">Dispatch Order:</strong> 
+  <span id="orderIdDisplay" style="background:#fff;padding:6px 10px;border-radius:6px;border:1px solid #eee;margin-left:8px;font-weight:bold">--</span>
+</div>
+
+<div class="container">
+  <div class="card">
+    <div style="display:flex;align-items:center;gap:12px">
+      <div style="width:40px;height:40px;background:#1e63d8;border-radius:8px;display:flex;align-items:center;justify-content:center;color:#fff;font-weight:bold">TMS</div>
+      <div>
+        <div style="font-weight:700" id="titleMain" data-key="mainTitle">派车单 / Dispatch Order</div>
+        <div class="note" id="subTitle" data-key="subTitle">请填写以下信息并选择操作</div>
+      </div>
+    </div>
+  </div>
+
+  <div class="card">
+    <div style="font-weight:700;margin-bottom:8px" id="basicTitle" data-key="basicInfo">基本信息</div>
+    <div class="grid">
+      <div style="grid-column: 1 / -1; background: #f0f7ff; padding: 10px; border-radius: 8px; border: 1px dashed #1e63d8;">
+        <label style="color:#1e63d8; font-weight:bold;" data-key="orderTypeLabel">订单类型 (必选)</label>
+        <select id="orderType" class="input" style="border-color:#1e63d8;">
+          <option value="" disabled selected data-key="selectTypeHolder">-- 请选择订单类型 --</option>
+          <option value="cross_border" data-key="typeCross">跨境运输 (Cross-border)</option>
+          <option value="domestic" data-key="typeDomestic">境内运输 (Domestic)</option>
+        </select>
+      </div>
+
+      <div><label data-key="customerLabel">客户名称</label><input id="customer" class="input"></div>
+      <div><label data-key="tractorLabel">车头车牌号</label><input id="tractor" class="input"></div>
+      <div><label data-key="trailerLabel">拖车车牌号</label><input id="trailer" class="input"></div>
+      <div><label data-key="driverLabel">司机姓名</label><input id="driver" class="input"></div>
+      <div><label data-key="driverPhoneLabel">司机联系方式</label><input id="driverPhone" class="input"></div>
+    </div>
+  </div>
+
+  <div class="card">
+    <div style="font-weight:700;margin-bottom:8px" id="loadTitle" data-key="loadInfo">装货信息</div>
+    <div class="grid">
+      <div><label data-key="pickupAddrLabel">装货点地址</label><input id="pickupAddr" class="input"></div>
+      <div><label data-key="contactLabel">装货联系人</label><input id="pickupContact" class="input"></div>
+      <div><label data-key="phoneLabel">联系人电话</label><input id="pickupPhone" class="input"></div>
+    </div>
+  </div>
+
+  <div class="card">
+    <div style="font-weight:700;margin-bottom:8px" id="unloadTitle" data-key="unloadInfo">卸货信息</div>
+    <div class="grid">
+      <div><label data-key="dropoffAddrLabel">卸货点地址</label><input id="dropoffAddr" class="input"></div>
+      <div><label data-key="contactLabel">卸货联系人</label><input id="dropoffContact" class="input"></div>
+      <div><label data-key="phoneLabel">联系人电话</label><input id="dropoffPhone" class="input"></div>
+    </div>
+  </div>
+
+  <div class="card">
+    <div style="font-weight:700;margin-bottom:8px" id="distTitle" data-key="fuelInfo">里程与油耗</div>
+    <div class="grid">
+      <div><label data-key="emptyKmLabel">空车里程 (Km)</label><input id="emptyKm" class="input" type="number" value="0"></div>
+      <div><label data-key="loadedKmLabel">重车里程 (Km)</label><input id="loadedKm" class="input" type="number" value="0"></div>
+      <div><label data-key="emptyFuelRuleLabel">空车油耗规则 (L/Km)</label><input id="emptyFuel" class="input" type="number" step="0.01" value="0.39"></div>
+      <div><label data-key="loadedFuelRuleLabel">重车油耗规则 (L/Km)</label><input id="loadedFuel" class="input" type="number" step="0.01" value="0.5"></div>
+      <div style="grid-column:1 / -1;display:flex;gap:12px;align-items:center">
+        <div style="flex:1"><div class="note" data-key="emptyFuelTotal">空车油耗 (L)</div><div class="fuelBox" id="fuelEmpty">0.00 L</div></div>
+        <div style="flex:1"><div class="note" data-key="loadedFuelTotal">重车油耗 (L)</div><div class="fuelBox" id="fuelLoaded">0.00 L</div></div>
+        <div style="flex:1"><div class="note" data-key="totalFuel">油料分配 (L)</div><div class="fuelBox" id="fuelTotal">0.00 L</div></div>
+      </div>
+    </div>
+  </div>
+
+  <div class="card">
+    <div style="font-weight:700;margin-bottom:8px" id="feesTitle" data-key="feesInfo">费用与备注</div>
+    <div class="grid">
+      <div><label data-key="allowanceLabel">司机津贴 (ZMW/USD)</label><input id="allowance" class="input" type="number" value="0"></div>
+      <div><label data-key="transitLabel">过境费用 (USD)</label><input id="transit" class="input" type="number" value="0"></div>
+      <div style="grid-column:1 / -1"><label data-key="notesLabel">备注信息</label><textarea id="notes" class="input"></textarea></div>
+    </div>
+  </div>
+
+  <div class="actions">
+    <button class="btn secondary small" id="saveDraftBtn" data-key="saveDraft">保存草稿</button>
+    <button class="btn secondary small" id="loadLastBtn" data-key="loadLast">最近派车单</button>
+    <button class="btn small" id="exportPdfBtn" data-key="exportPdf">输出为 PDF</button>
+    <button class="btn small" id="saveDispatchBtn" data-key="saveDispatch">保存订单并发车</button>
+  </div>
+  <div class="footerNote" id="status" style="text-align:center; margin-top:10px; color:#666;"> </div>
+</div>
+
+<div id="shareModal">
+  <div class="modal-content">
+    <h3 style="color:#1e63d8;margin-top:0;" data-key="modalTitle">派车成功！</h3>
+    <p style="font-size:14px;color:#666;" data-key="modalDesc">请将下方链接发送给司机，以便实时更新状态：</p>
+    <div id="qrcode">
+        <img id="qrImg" style="width:100%; height:100%; display:none;" />
+        <span id="qrLoading">正在生成二维码...</span>
+    </div>
+    <div class="url-box" id="reportUrl">--</div>
+    <button class="btn" style="width:100%;" id="copyAndCloseBtn" data-key="modalClose">复制链接并关闭</button>
+  </div>
+</div>
+
+<script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+
+<script type="module">
+import { initializeApp } from "https://www.gstatic.com/firebasejs/9.23.0/firebase-app.js";
+import { getDatabase, ref, set, get, update, query, limitToLast } from "https://www.gstatic.com/firebasejs/9.23.0/firebase-database.js";
+
+const firebaseConfig = {
+  apiKey: "AIzaSyDEbePpsrXwD8Okqa93UOGUFE37c8SFHS0",
+  authDomain: "cjsmartcargo-datebase.firebaseapp.com",
+  databaseURL: "https://cjsmartcargo-datebase-default-rtdb.firebaseio.com",
+  projectId: "cjsmartcargo-datebase",
+  storageBucket: "cjsmartcargo-datebase.firebasestorage.app",
+  messagingSenderId: "751451468006",
+  appId: "1:751451468006:web:a3cbd33cf3c2b29f624b27"
+};
+
+const app = initializeApp(firebaseConfig);
+const db = getDatabase(app);
+
+// 获取 URL 参数
+const urlParams = new URLSearchParams(window.location.search);
+const dispatchOrderId = urlParams.get('orderId');
+
+const getEl = (id) => document.getElementById(id);
+const customerEl = getEl('customer'), tractorEl = getEl('tractor'), trailerEl = getEl('trailer'),
+      driverEl = getEl('driver'), driverPhoneEl = getEl('driverPhone'), pickupAddrEl = getEl('pickupAddr'),
+      pickupContactEl = getEl('pickupContact'), pickupPhoneEl = getEl('pickupPhone'), dropoffAddrEl = getEl('dropoffAddr'),
+      dropoffContactEl = getEl('dropoffContact'), dropoffPhoneEl = getEl('dropoffPhone'), emptyKmEl = getEl('emptyKm'),
+      loadedKmEl = getEl('loadedKm'), emptyFuelEl = getEl('emptyFuel'), loadedFuelEl = getEl('loadedFuel'),
+      fuelEmptyEl = getEl('fuelEmpty'), fuelLoadedEl = getEl('fuelLoaded'), fuelTotalEl = getEl('fuelTotal'),
+      allowanceEl = getEl('allowance'), transitEl = getEl('transit'), notesEl = getEl('notes'),
+      saveDraftBtn = getEl('saveDraftBtn'), exportPdfBtn = getEl('exportPdfBtn'),
+      saveDispatchBtn = getEl('saveDispatchBtn'), statusEl = getEl('status'),
+      orderTypeEl = getEl('orderType'); // New Element
+
+// 自动填充预设逻辑
+if (dispatchOrderId) {
+  const dispatchRef = ref(db, `tms/dispatch/${dispatchOrderId}`);
+  get(dispatchRef).then((snapshot) => {
+    if (snapshot.exists()) {
+      const data = snapshot.val();
+      customerEl.value = data.client || "";
+      tractorEl.value = data.head || "";
+      trailerEl.value = data.trailer || "";
+      pickupAddrEl.value = data.loadP || "";
+      dropoffAddrEl.value = data.offP || "";
+      
+      // 修复点2：动态获取 Bonus 的单位，如果不存在则默认为 ZMW
+      const feeNotes = `[Project: ${data.projectName}]\n` +
+                       `Rate: ${data.fRate.val} ${data.fRate.unit}\n` +
+                       `Trip Money: ${data.fTrip.val} ${data.fTrip.unit}\n` +
+                       `Bonus: ${data.fBonus ? data.fBonus.val : 0} ${data.fBonus && data.fBonus.unit ? data.fBonus.unit : 'ZMW'}`;
+      notesEl.value = feeNotes;
+      
+      statusEl.innerText = lang === 'zh' ? "已自动填充预设项目信息" : "Project info auto-filled";
+    }
+  });
+}
+
+// ---------------------------------------------------------
+// Language Logic (Optimized for Requirement)
+// ---------------------------------------------------------
+let lang = localStorage.getItem('tms_lang') || 'zh';
+
+const langPack = {
+  zh: {
+    backToList: '返回列表',
+    pageTitle: '派车单制作',
+    dispatchOrderId: '派车单号:',
+    mainTitle: '派车单 / Dispatch Order',
+    subTitle: '请填写以下信息并选择操作',
+    basicInfo: '基本信息',
+    orderTypeLabel: '订单类型 (必选)',
+    selectTypeHolder: '-- 请选择订单类型 --',
+    typeCross: '跨境运输 (Cross-border)',
+    typeDomestic: '境内运输 (Domestic)',
+    customerLabel: '客户名称',
+    tractorLabel: '车头车牌号',
+    trailerLabel: '拖车车牌号',
+    driverLabel: '司机姓名',
+    driverPhoneLabel: '司机联系方式',
+    loadInfo: '装货信息',
+    pickupAddrLabel: '装货点地址',
+    contactLabel: '联系人',
+    phoneLabel: '联系人电话',
+    unloadInfo: '卸货信息',
+    dropoffAddrLabel: '卸货点地址',
+    fuelInfo: '里程与油耗',
+    emptyKmLabel: '空车里程 (Km)',
+    loadedKmLabel: '重车里程 (Km)',
+    emptyFuelRuleLabel: '空车油耗规则 (L/Km)',
+    loadedFuelRuleLabel: '重车油耗规则 (L/Km)',
+    emptyFuelTotal: '空车油耗 (L)',
+    loadedFuelTotal: '重车油耗 (L)',
+    totalFuel: '油料分配 (L)',
+    feesInfo: '费用与备注',
+    allowanceLabel: '司机津贴 (ZMW/USD)', // Updated label
+    transitLabel: '过境费用 (USD)',
+    notesLabel: '备注信息',
+    saveDraft: '保存草稿',
+    loadLast: '最近派车单',
+    exportPdf: '输出为 PDF',
+    saveDispatch: '保存订单并发车',
+    draftOk: '草稿已保存',
+    dispatchOk: '订单已发车',
+    pdfOk: 'PDF 已生成',
+    enterCustomer: '请填写客户名称',
+    enterType: '请选择订单类型！',
+    modalTitle: '派车成功！',
+    modalDesc: '请将下方链接发送给司机，以便实时更新状态：',
+    modalClose: '复制链接并关闭'
+  },
+  en: {
+    backToList: 'Back to List',
+    pageTitle: 'Create Dispatch',
+    dispatchOrderId: 'Dispatch ID:',
+    mainTitle: 'Dispatch Order',
+    subTitle: 'Fill in details below',
+    basicInfo: 'Basic Information',
+    orderTypeLabel: 'Order Type (Required)',
+    selectTypeHolder: '-- Select Order Type --',
+    typeCross: 'Cross-border Transport',
+    typeDomestic: 'Domestic Transport',
+    customerLabel: 'Customer Name',
+    tractorLabel: 'Tractor Plate',
+    trailerLabel: 'Trailer Plate',
+    driverLabel: 'Driver Name',
+    driverPhoneLabel: 'Driver Phone',
+    loadInfo: 'Loading Info',
+    pickupAddrLabel: 'Pickup Address',
+    contactLabel: 'Contact Person',
+    phoneLabel: 'Contact Phone',
+    unloadInfo: 'Unloading Info',
+    dropoffAddrLabel: 'Dropoff Address',
+    fuelInfo: 'Mileage & Fuel',
+    emptyKmLabel: 'Empty Dist (Km)',
+    loadedKmLabel: 'Loaded Dist (Km)',
+    emptyFuelRuleLabel: 'Empty Fuel Rate (L/Km)',
+    loadedFuelRuleLabel: 'Loaded Fuel Rate (L/Km)',
+    emptyFuelTotal: 'Empty Fuel (L)',
+    loadedFuelTotal: 'Loaded Fuel (L)',
+    totalFuel: 'Total Allocation (L)',
+    feesInfo: 'Fees & Notes',
+    allowanceLabel: 'Allowance (ZMW/USD)', // Updated label
+    transitLabel: 'Transit Fee (USD)',
+    notesLabel: 'Remarks / Notes',
+    saveDraft: 'Save Draft',
+    loadLast: 'Load Last Order',
+    exportPdf: 'Export to PDF',
+    saveDispatch: 'Save & Dispatch',
+    draftOk: 'Draft saved successfully',
+    dispatchOk: 'Order Dispatched',
+    pdfOk: 'PDF generated',
+    enterCustomer: 'Please enter customer name',
+    enterType: 'Please select Order Type!',
+    modalTitle: 'Dispatch Successful!',
+    modalDesc: 'Send this link to the driver for real-time updates:',
+    modalClose: 'Copy Link & Close'
+  }
+};
+
+function applyLang(){
+  const t = langPack[lang];
+  getEl('langToggle').innerText = lang === 'zh' ? 'English' : '中文';
+  
+  // 遍历所有带有 data-key 属性的元素进行翻译
+  document.querySelectorAll('[data-key]').forEach(el => {
+    const key = el.getAttribute('data-key');
+    if (t[key]) {
+      if (el.tagName === 'INPUT' || el.tagName === 'TEXTAREA') {
+        el.placeholder = t[key];
+      } else {
+        el.innerText = t[key];
+      }
+    }
+  });
+}
+
+getEl('langToggle').addEventListener('click', ()=>{ 
+  lang = lang === 'zh' ? 'en' : 'zh'; 
+  localStorage.setItem('tms_lang', lang); 
+  applyLang(); 
+});
+applyLang();
+
+// ---------------------------------------------------------
+// Core Logic
+// ---------------------------------------------------------
+
+function calcFuel(){
+  const eKm = parseFloat(emptyKmEl.value) || 0, lKm = parseFloat(loadedKmEl.value) || 0;
+  const eR = parseFloat(emptyFuelEl.value) || 0.39, lR = parseFloat(loadedFuelEl.value) || 0.5;
+  const fE = eKm * eR, fL = lKm * lR;
+  fuelEmptyEl.innerText = fE.toFixed(2) + " L";
+  fuelLoadedEl.innerText = fL.toFixed(2) + " L";
+  fuelTotalEl.innerText = (fE + fL).toFixed(2) + " L";
+  return { fE, fL, total: fE + fL };
+}
+[emptyKmEl, loadedKmEl, emptyFuelEl, loadedFuelEl].forEach(el => el.addEventListener('input', calcFuel));
+
+function genOrderId(){ return 'SRZM' + new Date().toISOString().replace(/[-:T]/g,'').slice(0,8) + '-' + Math.floor(Math.random()*90000+10000); }
+
+function readForm(){
+  const f = calcFuel();
+  return {
+    orderType: orderTypeEl.value, // Captured Order Type
+    customer: customerEl.value, tractor: tractorEl.value, trailer: trailerEl.value,
+    driver: driverEl.value, driverPhone: driverPhoneEl.value,
+    pickupAddr: pickupAddrEl.value, pickupContact: pickupContactEl.value, pickupPhone: pickupPhoneEl.value,
+    dropoffAddr: dropoffAddrEl.value, dropoffContact: dropoffContactEl.value, dropoffPhone: dropoffPhoneEl.value,
+    emptyKm: parseFloat(emptyKmEl.value)||0, loadedKm: parseFloat(loadedKmEl.value)||0,
+    fuelTotal: f.total, allowance: parseFloat(allowanceEl.value)||0, transit: parseFloat(transitEl.value)||0,
+    notes: notesEl.value, orderId: getEl('orderIdDisplay').innerText,
+    relDispatchId: dispatchOrderId || ""
+  };
+}
+
+exportPdfBtn.addEventListener('click', async () => {
+  const d = readForm();
+  const { jsPDF } = window.jspdf;
+  const doc = new jsPDF('p', 'pt', 'a4');
+  const margin = 40;
+  const pageWidth = 595;
+  const contentWidth = pageWidth - (margin * 2);
+  const loadImage = (url) => { return new Promise((resolve, reject) => { const img = new Image(); img.onload = () => resolve(img); img.onerror = () => reject(new Error("Image load failed")); img.src = url; }); };
+
+  try {
+    statusEl.innerText = "Generating PDF...";
+    const logoImg = await loadImage('assets/images/logo.jpg');
+    const imgW = 180; const imgH = 55; const imgX = (pageWidth - imgW) / 2; const imgY = 25; 
+    doc.addImage(logoImg, 'JPEG', imgX, imgY, imgW, imgH);
+  } catch (err) { console.warn("Logo 无法加载:", err); }
+
+  let y = 110; 
+  doc.setFont("helvetica", "bold"); doc.setFontSize(22); doc.setTextColor(30, 99, 216); doc.text("DISPATCH ORDER", margin, y);
+  doc.setFontSize(11); doc.setTextColor(0); doc.text(`Order No: `, 400, y - 5); doc.setFontSize(13); doc.text(`${d.orderId}`, 400, y + 10);
+  // Add Type to PDF Header
+  doc.setFontSize(10); doc.setTextColor(100); doc.text(d.orderType === 'cross_border' ? 'Cross-border' : 'Domestic', 400, y + 24);
+
+  y += 30; doc.setDrawColor(30, 99, 216); doc.setLineWidth(2); doc.line(margin, y, pageWidth - margin, y); y += 25;
+
+  const drawCell = (x, y, w, h, label, value, isBold = false) => {
+    doc.setDrawColor(200); doc.setLineWidth(0.5); doc.rect(x, y, w, h);
+    doc.setFont("helvetica", "bold"); doc.setFontSize(9); doc.setTextColor(100); doc.text(label, x + 5, y + 12);
+    doc.setFont("helvetica", isBold ? "bold" : "normal"); doc.setFontSize(10); doc.setTextColor(0);
+    const valStr = String(value || "N/A"); doc.text(valStr, x + 5, y + 26, { maxWidth: w - 10 });
+  };
+
+  const rowH = 35; const halfW = contentWidth / 2;
+  drawCell(margin, y, contentWidth, rowH, "CUSTOMER NAME", d.customer, true); y += rowH;
+  drawCell(margin, y, halfW, rowH, "TRACTOR NO.", d.tractor); drawCell(margin + halfW, y, halfW, rowH, "TRAILER NO.", d.trailer); y += rowH;
+  drawCell(margin, y, halfW, rowH, "DRIVER NAME", d.driver); drawCell(margin + halfW, y, halfW, rowH, "DRIVER PHONE", d.driverPhone);
+  y += rowH + 20; doc.setFont("helvetica", "bold"); doc.setFontSize(11); doc.text("LOGISTICS DETAILS", margin, y); y += 10;
+  const locH = 50; doc.setFillColor(245, 247, 251); doc.rect(margin, y, contentWidth, 15, 'F'); doc.text("PICKUP POINT (START)", margin + 5, y + 11); y += 15;
+  drawCell(margin, y, contentWidth, locH, "ADDRESS", d.pickupAddr, true); y += locH;
+  drawCell(margin, y, halfW, rowH, "CONTACT PERSON", d.pickupContact); drawCell(margin + halfW, y, halfW, rowH, "CONTACT PHONE", d.pickupPhone);
+  y += rowH + 15; doc.setFillColor(245, 247, 251); doc.rect(margin, y, contentWidth, 15, 'F'); doc.text("DELIVERY POINT (END)", margin + 5, y + 11); y += 15;
+  drawCell(margin, y, contentWidth, locH, "ADDRESS", d.dropoffAddr, true); y += locH;
+  drawCell(margin, y, halfW, rowH, "CONTACT PERSON", d.dropoffContact); drawCell(margin + halfW, y, halfW, rowH, "CONTACT PHONE", d.dropoffPhone);
+  y += rowH + 20; doc.setFont("helvetica", "bold"); doc.text("OPERATION & FINANCE", margin, y); y += 10;
+  drawCell(margin, y, halfW/2, rowH, "EMPTY KM", d.emptyKm); drawCell(margin + halfW/2, y, halfW/2, rowH, "LOADED KM", d.loadedKm);
+  drawCell(margin + halfW, y, halfW, rowH, "TOTAL FUEL ALLOCATION", d.fuelTotal.toFixed(2) + " Liters", true); y += rowH;
+  drawCell(margin, y, halfW, rowH, "DRIVER ALLOWANCE (ZMW)", d.allowance); drawCell(margin + halfW, y, halfW, rowH, "TRANSIT FEES (USD)", d.transit); y += rowH;
+  drawCell(margin, y, contentWidth, 60, "REMARKS / NOTES", d.notes); y += 100;
+  doc.setDrawColor(0); doc.line(margin, y, margin + 180, y); doc.line(pageWidth - margin - 180, y, pageWidth - margin, y); y += 15;
+  doc.setFont("helvetica", "normal"); doc.text("Authorized Signature & Stamp", margin, y); doc.text("Driver Signature", pageWidth - margin - 180, y);
+  doc.save(`Dispatch_${d.orderId}.pdf`);
+  statusEl.innerText = langPack[lang].pdfOk;
+});
+
+let driverList = [], vehicleList = [];
+(async () => {
+  const dSnap = await get(ref(db, "tms/drivers")); if (dSnap.exists()) driverList = Object.values(dSnap.val()).flatMap(g => Object.values(g));
+  const vSnap = await get(ref(db, "tms/vehicles")); if (vSnap.exists()) vehicleList = Object.values(vSnap.val());
+})();
+
+function showSuggest(inputEl, list, onSelect) {
+  const box = getEl("suggestContainer"); box.innerHTML = "";
+  const rect = inputEl.getBoundingClientRect();
+  box.style.cssText = `left:${rect.left}px; top:${rect.bottom}px; width:${rect.width}px;`;
+  box.className = "suggest-box";
+  list.forEach(item => {
+    const div = document.createElement("div"); div.className = "suggest-item"; div.innerText = item.label;
+    div.onclick = () => { inputEl.value = item.value; box.innerHTML = ""; onSelect(item.data); };
+    box.appendChild(div);
+  });
+}
+driverEl.addEventListener("input", () => {
+  const val = driverEl.value.toLowerCase();
+  const matches = driverList.filter(d => d.name.toLowerCase().includes(val)).map(d => ({ label: `${d.name} (${d.phone || ""})`, value: d.name, data: d }));
+  showSuggest(driverEl, matches, d => { driverPhoneEl.value = d.phone || ""; });
+});
+tractorEl.addEventListener("input", () => {
+  const val = tractorEl.value.toLowerCase();
+  const matches = vehicleList.filter(v => v.head.toLowerCase().includes(val)).map(v => ({ label: `${v.head} (Trailer: ${v.trailer})`, value: v.head, data: v }));
+  showSuggest(tractorEl, matches, v => { trailerEl.value = v.trailer; });
+});
+document.addEventListener("click", e => { if (!e.target.classList.contains("suggest-item")) getEl("suggestContainer").innerHTML = ""; });
+
+// 修改保存逻辑：集成报告链接生成
+saveDispatchBtn.addEventListener('click', async () => {
+  const data = readForm();
+  
+  // 验证必填项
+  if(!data.orderType) { alert(langPack[lang].enterType); return; }
+  if(!data.customer) { alert(langPack[lang].enterCustomer); return; }
+  
+  try {
+    // 1. 原功能：保存正式订单数据并初始化 statusStep 为 1
+    await set(ref(db, "tms/orders/" + data.orderId), { 
+        ...data, 
+        status: 'dispatched', 
+        statusStep: 1, 
+        startTime: Date.now() 
+    });
+    
+    // 2. 原功能：联动更新待发车项目的状态
+    if (dispatchOrderId) {
+      await update(ref(db, `tms/dispatch/${dispatchOrderId}`), { 
+        status: 'dispatched',
+        confirmedOrderId: data.orderId 
+      });
+    }
+
+    // 3. 新功能：生成报告页面链接并弹窗展示
+    const currentPath = window.location.pathname;
+    const reportPath = currentPath.substring(0, currentPath.lastIndexOf('/') + 1) + 'report.html';
+    const finalUrl = window.location.origin + reportPath + '?id=' + data.orderId;
+    
+    const modal = getEl('shareModal');
+    const urlText = getEl('reportUrl');
+    const qrImg = getEl('qrImg');
+    const qrLoading = getEl('qrLoading');
+    
+    urlText.innerText = finalUrl;
+    modal.style.display = 'flex';
+
+    // 生成二维码
+    qrImg.src = `https://api.qrserver.com/v1/create-qr-code/?size=200x200&data=${encodeURIComponent(finalUrl)}`;
+    qrImg.onload = () => {
+        qrLoading.style.display = 'none';
+        qrImg.style.display = 'block';
+    };
+
+    // 复制并关闭逻辑
+    getEl('copyAndCloseBtn').onclick = () => {
+        navigator.clipboard.writeText(finalUrl).then(() => {
+            alert("链接已复制。点击确定返回列表页。");
+            window.location.href = 'neworders.html';
+        });
+    };
+
+    statusEl.innerText = langPack[lang].dispatchOk + " (" + data.orderId + ")";
+  } catch(e) { statusEl.innerText = "Error: " + e.message; }
+});
+
+saveDraftBtn.addEventListener('click', async () => {
+  const data = readForm();
+  await set(ref(db, "tms/order_drafts/" + Date.now()), data);
+  statusEl.innerText = langPack[lang].draftOk;
+});
+
+getEl("loadLastBtn").addEventListener("click", async () => {
+  const q = query(ref(db, "tms/orders"), limitToLast(1));
+  const snap = await get(q);
+  if (snap.exists()) {
+    const last = Object.values(snap.val())[0];
+    if(last.orderType) orderTypeEl.value = last.orderType; // Load order Type
+    customerEl.value = last.customer || "";
+    tractorEl.value = last.tractor || "";
+    pickupAddrEl.value = last.pickupAddr || "";
+    dropoffAddrEl.value = last.dropoffAddr || "";
+    calcFuel();
+    statusEl.innerText = "Loaded last order info";
+  }
+});
+
+getEl('orderIdDisplay').innerText = genOrderId();
+</script>
+</body>
+</html>

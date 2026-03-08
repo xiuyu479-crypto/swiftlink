@@ -1,0 +1,281 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>客户信息管理 - TMS</title>
+    <style>
+        :root {
+            --primary-color: #1e63d8;
+            --bg-gradient: linear-gradient(135deg, #e9f3ff 0%, #dbe9ff 100%);
+            --glass-bg: rgba(255, 255, 255, 0.75);
+        }
+        body { margin: 0; font-family: -apple-system, sans-serif; background: var(--bg-gradient); min-height: 100vh; color: #333; }
+        .navbar { padding: 20px; display: flex; justify-content: space-between; align-items: center; background: var(--glass-bg); backdrop-filter: blur(10px); position: sticky; top: 0; z-index: 100; box-shadow: 0 2px 10px rgba(0,0,0,0.05); }
+        .nav-title { color: var(--primary-color); font-weight: bold; font-size: 20px; display: flex; align-items: center; gap: 10px; cursor: pointer; }
+        .btn-group { display: flex; gap: 12px; }
+        button { padding: 10px 20px; border-radius: 10px; border: none; cursor: pointer; font-weight: 600; transition: all 0.2s; }
+        .btn-main { background: var(--primary-color); color: white; }
+        .btn-outline { background: white; color: var(--primary-color); border: 1px solid var(--primary-color); }
+        
+        .container { max-width: 1200px; margin: 30px auto; padding: 0 20px; }
+        .table-container { background: var(--glass-bg); backdrop-filter: blur(12px); border-radius: 20px; overflow: hidden; box-shadow: 0 8px 30px rgba(0,0,0,0.08); }
+        table { width: 100%; border-collapse: collapse; text-align: left; }
+        th { background: rgba(30, 99, 216, 0.1); color: var(--primary-color); padding: 15px; }
+        td { padding: 15px; border-bottom: 1px solid rgba(0,0,0,0.05); vertical-align: middle; }
+        
+        /* 联系人展示样式 */
+        .contact-summary { display: flex; align-items: center; gap: 8px; cursor: pointer; color: var(--primary-color); font-weight: 500; }
+        .expand-icon { transition: transform 0.3s; font-size: 12px; }
+        .expanded .expand-icon { transform: rotate(180deg); }
+        .detail-row { display: none; background: rgba(255,255,255,0.4); }
+        .detail-row td { padding: 0; }
+        .contact-detail-list { padding: 10px 20px; list-style: none; margin: 0; font-size: 14px; }
+        .contact-detail-item { padding: 5px 0; border-bottom: 1px dashed rgba(0,0,0,0.05); display: flex; gap: 20px; }
+        .contact-detail-item:last-child { border-bottom: none; }
+
+        .action-btns { display: none; }
+        .maintenance-mode .action-btns { display: table-cell; }
+        
+        /* 模态框 */
+        .modal { display: none; position: fixed; inset: 0; background: rgba(0,0,0,0.4); backdrop-filter: blur(4px); z-index: 1000; justify-content: center; align-items: center; }
+        .modal-content { background: white; padding: 30px; border-radius: 20px; width: 95%; max-width: 800px; max-height: 85vh; overflow-y: auto; }
+        .form-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 15px; margin-bottom: 20px; }
+        .form-group { display: flex; flex-direction: column; gap: 5px; }
+        input, select { padding: 10px; border: 1px solid #ddd; border-radius: 8px; }
+        
+        /* 动态联系人行布局 */
+        .contact-row { display: grid; grid-template-columns: 1fr 1fr 1.2fr 1.2fr 40px; gap: 8px; margin-bottom: 10px; }
+        .btn-circle { width: 30px; height: 30px; border-radius: 50%; padding: 0; display: flex; align-items: center; justify-content: center; }
+    </style>
+</head>
+<body>
+
+    <nav class="navbar">
+        <div class="nav-title" onclick="location.href='index.html'">
+            <img src="https://img.icons8.com/ios-filled/30/1e63d8/left.png"> <span>客户信息管理</span>
+        </div>
+        <div class="btn-group">
+            <button class="btn-main" onclick="openModal()">+ 添加客户</button>
+            <button id="toggleEdit" class="btn-outline" onclick="toggleMaintenance()">信息维护</button>
+        </div>
+    </nav>
+
+    <div class="container">
+        <div class="table-container">
+            <table>
+                <thead>
+                    <tr>
+                        <th>客户名称</th><th>TPIN</th><th>行业</th><th>联系人(点击展开)</th><th>公司地址</th><th class="action-btns">操作</th>
+                    </tr>
+                </thead>
+                <tbody id="clientList">
+                    <tr><td colspan="6" style="text-align:center; padding:20px;">数据加载中...</td></tr>
+                </tbody>
+            </table>
+        </div>
+    </div>
+
+    <div id="clientModal" class="modal">
+        <div class="modal-content">
+            <h2 id="modalTitle" style="color:var(--primary-color); margin:0 0 20px 0;">添加新客户</h2>
+            <form id="clientForm">
+                <div class="form-grid">
+                    <div class="form-group"><label>客户名称</label><input type="text" id="clientName" required></div>
+                    <div class="form-group"><label>客户 TPIN</label><input type="text" id="tpin"></div>
+                    <div class="form-group"><label>行业种类</label>
+                        <select id="industry">
+                            <option value="物流">物流</option><option value="矿业">矿业</option><option value="制造">制造</option><option value="其他">其他</option>
+                        </select>
+                    </div>
+                    <div class="form-group"><label>公司地址</label><input type="text" id="address"></div>
+                </div>
+                
+                <div style="font-weight:bold; margin-bottom:10px; display:flex; justify-content:space-between;">
+                    <span>联系人信息</span>
+                    <span style="font-size:12px; color:#666;">姓名 / 职务 / 电话 / 微信</span>
+                </div>
+                <div id="contactContainer"></div>
+
+                <div class="btn-group" style="margin-top:20px; justify-content: flex-end;">
+                    <span id="saveStatus" style="margin-right:auto; color:var(--primary-color);"></span>
+                    <button type="button" class="btn-outline" onclick="closeModal()">取消</button>
+                    <button type="submit" class="btn-main" id="saveBtn">保存信息</button>
+                </div>
+            </form>
+        </div>
+    </div>
+
+<script type="module">
+    import { initializeApp } from "https://www.gstatic.com/firebasejs/9.23.0/firebase-app.js";
+    import { getDatabase, ref, push, set, onValue, remove } from "https://www.gstatic.com/firebasejs/9.23.0/firebase-database.js";
+
+    const firebaseConfig = {
+        apiKey: "AIzaSyDEbePpsrXwD8Okqa93UOGUFE37c8SFHS0",
+        authDomain: "cjsmartcargo-datebase.firebaseapp.com",
+        databaseURL: "https://cjsmartcargo-datebase-default-rtdb.firebaseio.com",
+        projectId: "cjsmartcargo-datebase",
+        storageBucket: "cjsmartcargo-datebase.firebasestorage.app",
+        messagingSenderId: "751451468006",
+        appId: "1:751451468006:web:a3cbd33cf3c2b29f624b27"
+    };
+
+    const app = initializeApp(firebaseConfig);
+    const db = getDatabase(app);
+    const PATH = 'tms/clients';
+    let editingId = null;
+
+    // 1. 列表渲染逻辑
+    onValue(ref(db, PATH), (snapshot) => {
+        const data = snapshot.val() || {};
+        const list = document.getElementById('clientList');
+        list.innerHTML = '';
+        
+        Object.keys(data).forEach(id => {
+            const c = data[id];
+            const mainContact = c.contacts && c.contacts.length > 0 ? c.contacts[0].name : '无联系人';
+            
+            const tr = document.createElement('tr');
+            tr.id = `row-${id}`;
+            tr.innerHTML = `
+                <td>${c.name}</td>
+                <td>${c.tpin || '-'}</td>
+                <td>${c.industry}</td>
+                <td>
+                    <div class="contact-summary" onclick="window.toggleContacts('${id}')">
+                        ${mainContact} <span class="expand-icon">▼</span>
+                    </div>
+                </td>
+                <td>${c.address || '-'}</td>
+                <td class="action-btns">
+                    <button class="btn-outline" style="padding:5px 10px" onclick="window.editClient('${id}')">编辑</button>
+                    <button class="btn-outline" style="padding:5px 10px; color:red; border-color:red" onclick="window.deleteClient('${id}')">删除</button>
+                </td>
+            `;
+
+            // 详情折叠行
+            const detailTr = document.createElement('tr');
+            detailTr.className = 'detail-row';
+            detailTr.id = `detail-${id}`;
+            let contactsHtml = (c.contacts || []).map(con => `
+                <li class="contact-detail-item">
+                    <span style="width:80px"><b>${con.name}</b></span>
+                    <span style="width:100px">${con.job || '-'}</span>
+                    <span style="width:120px">📞 ${con.phone || '-'}</span>
+                    <span>💬 WeChat: ${con.wechat || '-'}</span>
+                </li>
+            `).join('');
+            
+            detailTr.innerHTML = `<td colspan="6"><ul class="contact-detail-list">${contactsHtml || '<li>暂无详细联系人信息</li>'}</ul></td>`;
+
+            list.appendChild(tr);
+            list.appendChild(detailTr);
+        });
+    });
+
+    // 2. 折叠切换函数
+    window.toggleContacts = (id) => {
+        const row = document.getElementById(`row-${id}`);
+        const detail = document.getElementById(`detail-${id}`);
+        const isVisible = detail.style.display === 'table-row';
+        
+        detail.style.display = isVisible ? 'none' : 'table-row';
+        isVisible ? row.classList.remove('expanded') : row.classList.add('expanded');
+    };
+
+    // 3. 数据保存
+    document.getElementById('clientForm').addEventListener('submit', async (e) => {
+        e.preventDefault();
+        const saveBtn = document.getElementById('saveBtn');
+        saveBtn.disabled = true;
+        
+        const contacts = [];
+        document.querySelectorAll('.contact-row').forEach(row => {
+            const name = row.querySelector('.c-name').value;
+            if(name){
+                contacts.push({
+                    name: name,
+                    job: row.querySelector('.c-job').value,
+                    phone: row.querySelector('.c-phone').value,
+                    wechat: row.querySelector('.c-wechat').value
+                });
+            }
+        });
+
+        const payload = {
+            name: document.getElementById('clientName').value,
+            tpin: document.getElementById('tpin').value,
+            industry: document.getElementById('industry').value,
+            address: document.getElementById('address').value,
+            contacts: contacts,
+            updatedAt: Date.now()
+        };
+
+        try {
+            if (editingId) {
+                await set(ref(db, `${PATH}/${editingId}`), payload);
+            } else {
+                await push(ref(db, PATH), payload);
+            }
+            closeModal();
+        } catch (err) { alert("错误: " + err.message); }
+        finally { saveBtn.disabled = false; }
+    });
+
+    // 4. 编辑与动态行
+    window.addContactRow = (data = null, isFirst = false) => {
+        const container = document.getElementById('contactContainer');
+        const div = document.createElement('div');
+        div.className = 'contact-row';
+        div.innerHTML = `
+            <input type="text" placeholder="姓名" class="c-name" value="${data ? data.name : ''}" required>
+            <input type="text" placeholder="职务" class="c-job" value="${data ? data.job : ''}">
+            <input type="text" placeholder="电话" class="c-phone" value="${data ? data.phone : ''}">
+            <input type="text" placeholder="微信" class="c-wechat" value="${data ? data.wechat : ''}">
+            ${isFirst ? 
+                `<button type="button" class="btn-main btn-circle" onclick="window.addContactRow()">+</button>` : 
+                `<button type="button" class="btn-outline btn-circle" style="color:red; border-color:red" onclick="this.parentElement.remove()">-</button>`
+            }
+        `;
+        container.appendChild(div);
+    };
+
+    window.editClient = (id) => {
+        editingId = id;
+        onValue(ref(db, `${PATH}/${id}`), (snap) => {
+            const c = snap.val();
+            if(!c) return;
+            document.getElementById('modalTitle').innerText = "编辑客户";
+            document.getElementById('clientName').value = c.name;
+            document.getElementById('tpin').value = c.tpin;
+            document.getElementById('industry').value = c.industry;
+            document.getElementById('address').value = c.address;
+            
+            const container = document.getElementById('contactContainer');
+            container.innerHTML = '';
+            if(c.contacts && c.contacts.length > 0) {
+                c.contacts.forEach((con, i) => window.addContactRow(con, i === 0));
+            } else { window.addContactRow(null, true); }
+            document.getElementById('clientModal').style.display = 'flex';
+        }, { onlyOnce: true });
+    };
+
+    window.openModal = () => {
+        editingId = null;
+        document.getElementById('modalTitle').innerText = "添加新客户";
+        document.getElementById('clientForm').reset();
+        document.getElementById('contactContainer').innerHTML = '';
+        window.addContactRow(null, true);
+        document.getElementById('clientModal').style.display = 'flex';
+    };
+
+    window.deleteClient = (id) => { if(confirm("确定删除？")) remove(ref(db, `${PATH}/${id}`)); };
+    window.closeModal = () => { document.getElementById('clientModal').style.display = 'none'; };
+    window.toggleMaintenance = () => {
+        const table = document.querySelector('table');
+        const isEdit = table.classList.toggle('maintenance-mode');
+        document.getElementById('toggleEdit').innerText = isEdit ? "退出维护" : "信息维护";
+    };
+</script>
+</body>
+</html>

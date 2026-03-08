@@ -1,0 +1,238 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>客户追踪门户管理 · TMS</title>
+<style>
+    :root { --primary: #1e63d8; --bg: #f5f7fb; }
+    body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif; background: var(--bg); margin: 0; padding: 0; color: #333; }
+    
+    .header { background: #fff; padding: 20px; border-bottom: 1px solid #eee; display: flex; justify-content: space-between; align-items: center; box-shadow: 0 2px 5px rgba(0,0,0,0.05); }
+    .header h2 { margin: 0; font-size: 20px; color: var(--primary); }
+    
+    .container { max-width: 1000px; margin: 20px auto; padding: 0 15px; }
+    
+    .client-card { 
+        background: #fff; border-radius: 12px; padding: 20px; margin-bottom: 15px; 
+        display: flex; justify-content: space-between; align-items: center;
+        box-shadow: 0 2px 8px rgba(0,0,0,0.06); transition: transform 0.2s;
+    }
+    .client-card:hover { transform: translateY(-2px); box-shadow: 0 5px 15px rgba(0,0,0,0.1); }
+    
+    .client-info h3 { margin: 0 0 5px 0; font-size: 18px; }
+    .active-count { background: #e3f2fd; color: var(--primary); padding: 4px 10px; border-radius: 20px; font-size: 12px; font-weight: bold; }
+    
+    .action-btn { 
+        background: var(--primary); color: white; border: none; padding: 10px 20px; 
+        border-radius: 8px; font-weight: 600; cursor: pointer; display: flex; align-items: center; gap: 8px;
+    }
+    .action-btn:hover { background: #164ba0; }
+
+    /* Modal */
+    .modal { display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.5); z-index: 1000; align-items: center; justify-content: center; }
+    .modal-content { background: #fff; padding: 30px; border-radius: 16px; width: 90%; max-width: 400px; text-align: center; }
+    .qr-box { margin: 20px auto; width: 200px; height: 200px; background: #eee; }
+    .link-box { background: #f8f9fa; padding: 10px; border: 1px dashed #ccc; border-radius: 6px; word-break: break-all; font-size: 13px; color: #555; margin-bottom: 20px; user-select: all;}
+    .close-btn { background: #eee; color: #333; border: none; padding: 10px 20px; border-radius: 8px; cursor: pointer; font-weight: bold; width: 100%; }
+
+    /* GPS Section Styles (Integrated from gps.html) */
+    .gps-section {
+        background: white;
+        padding: 30px;
+        border-radius: 12px;
+        box-shadow: 0 10px 25px rgba(0,0,0,0.1);
+        text-align: center;
+        max-width: 450px;
+        margin: 20px auto;
+    }
+
+    .gps-icon-box {
+        font-size: 50px;
+        color: #1e63d8;
+        margin-bottom: 20px;
+    }
+
+    .gps-section h2 { color: #333; margin: 10px 0; }
+    .gps-section p { color: #666; line-height: 1.6; margin-bottom: 30px; }
+
+    .gps-btn-group {
+        display: flex;
+        flex-direction: column;
+        gap: 15px;
+    }
+
+    .gps-btn {
+        padding: 14px;
+        border-radius: 8px;
+        text-decoration: none;
+        font-weight: 600;
+        transition: all 0.3s ease;
+        cursor: pointer;
+        border: none;
+    }
+
+    /* 进入 GPS 按钮 */
+    .gps-btn-main {
+        background-color: #1e63d8;
+        color: white;
+        box-shadow: 0 4px 12px rgba(30, 99, 216, 0.3);
+    }
+
+    .gps-btn-main:hover {
+        background-color: #164eb0;
+        transform: translateY(-2px);
+    }
+
+    /* 返回首页按钮 (已存在于header，可选保留或整合) */
+    .gps-btn-outline {
+        background-color: transparent;
+        color: #666;
+        border: 1px solid #ddd;
+    }
+
+    .gps-btn-outline:hover {
+        background-color: #f8f9fa;
+        border-color: #bbb;
+    }
+
+    .gps-notice {
+        font-size: 12px;
+        color: #999;
+        margin-top: 20px;
+    }
+</style>
+</head>
+<body>
+
+<div class="header">
+    <h2>📡 客户追踪门户管理</h2>
+    <a href="index.html" style="text-decoration:none; color:#666; font-size:14px;">返回首页</a>
+</div>
+
+<div class="container" id="app">
+    <div id="loading" style="text-align:center; padding:40px; color:#999;">正在加载活跃客户数据...</div>
+    <div id="clientList"></div>
+</div>
+
+<!-- Integrated GPS Section -->
+<div class="gps-section">
+    <div class="gps-icon-box">📍</div>
+    <h2>GPS 车辆实时追踪</h2>
+    <p>点击下方按钮启动追踪系统。首次访问请在弹出窗口中登录，系统将自动记录您的登录凭据。</p>
+
+    <div class="gps-btn-group">
+        <a href="https://app.ifleet.africa/#/login" class="gps-btn gps-btn-main">
+            立即进入地图界面
+        </a>
+        
+        <a href="index.html" class="gps-btn gps-btn-outline">
+            返回系统主页
+        </a>
+    </div>
+
+    <div class="gps-notice">
+        提示：若已登录且勾选“记住我”，将直接显示实时地图。
+    </div>
+</div>
+
+<div class="modal" id="shareModal">
+    <div class="modal-content">
+        <h3 style="margin-top:0; color:#1e63d8;">分享追踪链接</h3>
+        <p style="font-size:14px; color:#666;">发送给 <b id="modalClientName">--</b> 以查看其实时订单</p>
+        
+        <div class="qr-box">
+            <img id="qrImg" style="width:100%; height:100%; object-fit:contain;" />
+        </div>
+        
+        <div class="link-box" id="shareLink">Generating...</div>
+        
+        <button class="action-btn" style="width:100%; justify-content:center; margin-bottom:10px;" id="copyBtn">📋 复制链接</button>
+        <button class="close-btn" onclick="document.getElementById('shareModal').style.display='none'">关闭</button>
+    </div>
+</div>
+
+<script type="module">
+import { initializeApp } from "https://www.gstatic.com/firebasejs/9.23.0/firebase-app.js";
+import { getDatabase, ref, onValue } from "https://www.gstatic.com/firebasejs/9.23.0/firebase-database.js";
+
+const firebaseConfig = {
+  apiKey: "AIzaSyDEbePpsrXwD8Okqa93UOGUFE37c8SFHS0",
+  authDomain: "cjsmartcargo-datebase.firebaseapp.com",
+  databaseURL: "https://cjsmartcargo-datebase-default-rtdb.firebaseio.com",
+  projectId: "cjsmartcargo-datebase",
+  storageBucket: "cjsmartcargo-datebase.firebasestorage.app",
+  messagingSenderId: "751451468006",
+  appId: "1:751451468006:web:a3cbd33cf3c2b29f624b27"
+};
+
+const app = initializeApp(firebaseConfig);
+const db = getDatabase(app);
+
+onValue(ref(db, 'tms/orders'), (snapshot) => {
+    const data = snapshot.val();
+    const listDiv = document.getElementById('clientList');
+    document.getElementById('loading').style.display = 'none';
+    listDiv.innerHTML = '';
+
+    if (!data) {
+        listDiv.innerHTML = '<div style="text-align:center">暂无活跃订单</div>';
+        return;
+    }
+
+    // Group by Customer
+    const clients = {};
+    Object.values(data).forEach(order => {
+        if (!order.customer) return;
+        // Normalize customer name (trim spaces)
+        const cName = order.customer.trim();
+        if (!clients[cName]) clients[cName] = 0;
+        clients[cName]++;
+    });
+
+    Object.keys(clients).sort().forEach(client => {
+        const count = clients[client];
+        const card = document.createElement('div');
+        card.className = 'client-card';
+        card.innerHTML = `
+            <div class="client-info">
+                <h3>${client}</h3>
+                <span class="active-count">${count} 辆运输中</span>
+            </div>
+            <button class="action-btn" onclick="openShare('${client}')">
+                 生成tracking链接
+            </button>
+        `;
+        listDiv.appendChild(card);
+    });
+});
+
+window.openShare = (clientName) => {
+    const modal = document.getElementById('shareModal');
+    const nameEl = document.getElementById('modalClientName');
+    const linkEl = document.getElementById('shareLink');
+    const qrImg = document.getElementById('qrImg');
+    
+    nameEl.innerText = clientName;
+    
+    // 生成 client_view.html 的完整链接，并对客户名称进行 URL 编码
+    // 假设 client_view.html 与当前文件在同一目录
+    const baseUrl = window.location.href.replace('tracking.html', 'client_view.html');
+    // 如果直接在根目录，需调整路径处理
+    const cleanBase = baseUrl.split('?')[0]; 
+    const shareUrl = `${cleanBase}?c=${encodeURIComponent(clientName)}`;
+    
+    linkEl.innerText = shareUrl;
+    
+    // 生成二维码
+    qrImg.src = `https://api.qrserver.com/v1/create-qr-code/?size=300x300&data=${encodeURIComponent(shareUrl)}`;
+    
+    modal.style.display = 'flex';
+    
+    document.getElementById('copyBtn').onclick = () => {
+        navigator.clipboard.writeText(shareUrl).then(() => alert('链接已复制！'));
+    };
+};
+</script>
+</body>
+</html>

@@ -1,0 +1,246 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<title>车辆与司机管理</title>
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<style>
+body{font-family:-apple-system,BlinkMacSystemFont,Segoe UI,Roboto,Helvetica,Arial;margin:0;background:linear-gradient(135deg,#e9f3ff 0%,#dbe9ff 100%);color:#123;padding:0}
+.header{padding:18px;text-align:center;color:#1f4e92;font-weight:600;font-size:20px}
+.container{max-width:980px;margin:18px auto;padding:14px}
+.card{background:rgba(255,255,255,0.75);backdrop-filter:blur(8px);border-radius:12px;padding:14px;box-shadow:0 6px 16px rgba(0,0,0,0.08);margin-bottom:14px}
+.form-row{display:grid;grid-template-columns:repeat(auto-fit,minmax(200px,1fr));gap:10px;margin-bottom:10px}
+.input{padding:8px;border-radius:8px;border:1px solid #dfe8ff;background:rgba(255,255,255,0.9);width:90%}
+.label{font-size:13px;color:#345;margin-bottom:6px}
+.btn{padding:10px 14px;border-radius:10px;border:none;background:#1e63d8;color:#fff;cursor:pointer}
+.secondary{background:#6b7280}
+.table{width:100%;border-collapse:collapse;margin-top:12px}
+.table th{background:rgba(30,99,216,0.07);text-align:left;padding:10px;border-bottom:1px solid rgba(0,0,0,0.06)}
+.table td{padding:10px;border-bottom:1px solid rgba(0,0,0,0.04)}
+.actions button{margin-right:6px;padding:6px 10px;border-radius:8px;border:none;cursor:pointer}
+.editBtn{background:#f59e0b;color:#fff}
+.delBtn{background:#ef4444;color:#fff}
+.empty{color:#666;padding:12px}
+.langSwitch{position:fixed;top:12px;right:16px}
+.langBtn{padding:6px 12px;border-radius:12px;border:none;background:rgba(255,255,255,0.7);cursor:pointer}
+.tab-nav {display: flex; gap: 10px; margin-bottom: 20px; justify-content: center;}
+.tab-btn {padding: 10px 20px; border-radius: 20px; border: 1px solid #1e63d8; background: transparent; color: #1e63d8; cursor: pointer; transition: 0.3s;}
+.tab-btn.active {background: #1e63d8; color: white;}
+.section {display: none;}
+.section.active {display: block;}
+</style>
+</head>
+<body>
+<script>
+// 统一验证逻辑：不再写死 token 字符串，只要存在 token 即视为通过 index 验证进入
+if(!localStorage.getItem("tms_auth")){
+  window.location.href = "password.html?redirect=" + encodeURIComponent(location.pathname.split('/').pop());
+}
+</script>
+
+<div style="position:fixed;top:15px;left:15px;z-index:999;">
+  <button onclick="window.location.href='index.html'">返回主页面</button>
+</div>
+
+<div class="langSwitch"><button class="langBtn" id="langToggle">English</button></div>
+
+<div class="header" id="pageTitle">车辆与司机档案</div>
+
+<div class="container">
+  <div class="tab-nav">
+    <button class="tab-btn active" onclick="switchTab('vehicle')" id="tabVeh">车辆管理</button>
+    <button class="tab-btn" onclick="switchTab('driver')" id="tabDrv">司机管理</button>
+  </div>
+
+  <div id="vehicleSection" class="section active">
+    <div class="card">
+      <div style="font-weight:600;margin-bottom:8px" id="vFormTitle">添加车辆</div>
+      <div class="form-row">
+        <div><div class="label" id="lblHead">车头号</div><input class="input" id="head"></div>
+        <div><div class="label" id="lblTrailer">拖车号</div><input class="input" id="trailer"></div>
+        <div><div class="label" id="lblKm">里程数 (Km)</div><input class="input" id="km" type="number" min="0"></div>
+      </div>
+      <div style="display:flex;gap:8px;align-items:center">
+        <button class="btn" id="vSaveBtn">保存</button>
+        <button class="btn secondary" id="vResetBtn">重置</button>
+        <div style="margin-left:auto;color:#666" id="vStatus"></div>
+      </div>
+    </div>
+    <div class="card">
+      <div style="font-weight:600" id="vListTitle">车辆列表</div>
+      <table class="table">
+        <thead><tr><th id="thHead">车头号</th><th id="thTrailer">拖车号</th><th id="thKm">里程数</th><th id="thAction">操作</th></tr></thead>
+        <tbody id="vTbody"><tr><td colspan="4" class="empty">Loading...</td></tr></tbody>
+      </table>
+    </div>
+  </div>
+
+  <div id="driverSection" class="section">
+    <div class="card">
+      <div style="font-weight:600;margin-bottom:8px" id="dFormTitle">添加新司机</div>
+      <div class="form-row">
+        <div><div class="label" id="lblName">司机姓名</div><input class="input" id="name"></div>
+        <div><div class="label" id="lblDob">出生日期</div><input class="input" id="dob" type="date"></div>
+        <div><div class="label" id="lblPassport">护照号</div><input class="input" id="passport"></div>
+        <div><div class="label" id="lblNation">国籍</div><input class="input" id="nation"></div>
+        <div><div class="label" id="lblExp">工作年限</div><input class="input" id="experience" type="number"></div>
+        <div><div class="label" id="lblPhone">联系方式</div><input class="input" id="phone"></div>
+      </div>
+      <div style="display:flex;gap:8px;align-items:center">
+        <button class="btn" id="dSaveBtn">保存</button>
+        <button class="btn secondary" id="dResetBtn">重置</button>
+        <div style="margin-left:auto;color:#666" id="dStatus"></div>
+      </div>
+    </div>
+    <div class="card">
+      <div style="font-weight:600" id="dListTitle">司机列表</div>
+      <table class="table">
+        <thead><tr><th id="thName">姓名</th><th id="thPassport">护照</th><th id="thNation">国籍</th><th id="thPhone">联系方式</th><th id="thActionD">操作</th></tr></thead>
+        <tbody id="dTbody"><tr><td colspan="5" class="empty">Loading...</td></tr></tbody>
+      </table>
+    </div>
+  </div>
+</div>
+
+<script type="module">
+import { initializeApp } from "https://www.gstatic.com/firebasejs/9.23.0/firebase-app.js";
+import { getDatabase, ref, push, set, onValue, remove } from "https://www.gstatic.com/firebasejs/9.23.0/firebase-database.js";
+
+const firebaseConfig = {
+  apiKey: "AIzaSyDEbePpsrXwD8Okqa93UOGUFE37c8SFHS0",
+  authDomain: "cjsmartcargo-datebase.firebaseapp.com",
+  databaseURL: "https://cjsmartcargo-datebase-default-rtdb.firebaseio.com",
+  projectId: "cjsmartcargo-datebase"
+};
+
+const app = initializeApp(firebaseConfig);
+const db = getDatabase(app);
+const V_PATH = 'tms/vehicles';
+const D_PATH = 'tms/drivers';
+
+// Tab Switching
+window.switchTab = (type) => {
+  document.querySelectorAll('.section').forEach(s => s.classList.remove('active'));
+  document.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('active'));
+  if(type === 'vehicle') {
+    document.getElementById('vehicleSection').classList.add('active');
+    document.getElementById('tabVeh').classList.add('active');
+  } else {
+    document.getElementById('driverSection').classList.add('active');
+    document.getElementById('tabDrv').classList.add('active');
+  }
+}
+
+// --- VEHICLE LOGIC ---
+let vEditId = null;
+onValue(ref(db, V_PATH), snap => {
+  const data = snap.val() || {};
+  const tbody = document.getElementById('vTbody');
+  tbody.innerHTML = '';
+  Object.keys(data).forEach(k => {
+    const v = data[k];
+    const tr = document.createElement('tr');
+    tr.innerHTML = `<td>${v.head||''}</td><td>${v.trailer||''}</td><td>${v.km||0}</td>
+      <td class="actions">
+        <button class="editBtn" onclick="editV('${k}')">编辑</button>
+        <button class="delBtn" onclick="delV('${k}')">删除</button>
+      </td>`;
+    tbody.appendChild(tr);
+  });
+});
+
+window.editV = (id) => {
+  onValue(ref(db, V_PATH+'/'+id), snap => {
+    const v = snap.val();
+    document.getElementById('head').value = v.head;
+    document.getElementById('trailer').value = v.trailer;
+    document.getElementById('km').value = v.km;
+    vEditId = id;
+    document.getElementById('vFormTitle').innerText = '编辑车辆';
+  }, {onlyOnce: true});
+};
+
+window.delV = async (id) => { if(confirm('Confirm delete?')) await remove(ref(db, V_PATH+'/'+id)); };
+
+document.getElementById('vSaveBtn').onclick = async () => {
+  const payload = { head: document.getElementById('head').value, trailer: document.getElementById('trailer').value, km: parseFloat(document.getElementById('km').value)||0 };
+  if(vEditId) await set(ref(db, V_PATH+'/'+vEditId), payload);
+  else await set(push(ref(db, V_PATH)), payload);
+  document.getElementById('vResetBtn').click();
+};
+
+document.getElementById('vResetBtn').onclick = () => {
+  document.getElementById('head').value=''; document.getElementById('trailer').value=''; document.getElementById('km').value='';
+  vEditId = null; document.getElementById('vFormTitle').innerText='添加车辆';
+};
+
+// --- DRIVER LOGIC ---
+let dEditId = null;
+onValue(ref(db, D_PATH), snap => {
+  const data = snap.val() || {};
+  const tbody = document.getElementById('dTbody');
+  tbody.innerHTML = '';
+  Object.keys(data).forEach(k => {
+    const d = data[k];
+    const tr = document.createElement('tr');
+    tr.innerHTML = `<td>${d.name||''}</td><td>${d.passport||''}</td><td>${d.nation||''}</td><td>${d.phone||''}</td>
+      <td class="actions">
+        <button class="editBtn" onclick="editD('${k}')">编辑</button>
+        <button class="delBtn" onclick="delD('${k}')">删除</button>
+      </td>`;
+    tbody.appendChild(tr);
+  });
+});
+
+window.editD = (id) => {
+  onValue(ref(db, D_PATH+'/'+id), snap => {
+    const v = snap.val();
+    document.getElementById('name').value = v.name;
+    document.getElementById('dob').value = v.dob;
+    document.getElementById('passport').value = v.passport;
+    document.getElementById('nation').value = v.nation;
+    document.getElementById('experience').value = v.experience;
+    document.getElementById('phone').value = v.phone;
+    dEditId = id;
+    document.getElementById('dFormTitle').innerText = '编辑司机';
+  }, {onlyOnce: true});
+};
+
+window.delD = async (id) => { if(confirm('Confirm delete?')) await remove(ref(db, D_PATH+'/'+id)); };
+
+document.getElementById('dSaveBtn').onclick = async () => {
+  const payload = { 
+    name: document.getElementById('name').value, 
+    dob: document.getElementById('dob').value,
+    passport: document.getElementById('passport').value,
+    nation: document.getElementById('nation').value,
+    experience: document.getElementById('experience').value,
+    phone: document.getElementById('phone').value
+  };
+  if(dEditId) await set(ref(db, D_PATH+'/'+dEditId), payload);
+  else await set(push(ref(db, D_PATH)), payload);
+  document.getElementById('dResetBtn').click();
+};
+
+document.getElementById('dResetBtn').onclick = () => {
+  ['name','dob','passport','nation','experience','phone'].forEach(id => document.getElementById(id).value = '');
+  dEditId = null; document.getElementById('dFormTitle').innerText='添加新司机';
+};
+
+// --- LANGUAGE ---
+const lang = localStorage.getItem('tms_lang') || 'zh';
+const pack = {
+  zh: { title: "车辆与司机管理", vTab: "车辆管理", dTab: "司机管理", vHead: "车头号", dName: "司机姓名", save: "保存" },
+  en: { title: "Fleet & Driver Info", vTab: "Vehicles", dTab: "Drivers", vHead: "Head No", dName: "Driver Name", save: "Save" }
+};
+const t = pack[lang];
+document.getElementById('pageTitle').innerText = t.title;
+document.getElementById('tabVeh').innerText = t.vTab;
+document.getElementById('tabDrv').innerText = t.dTab;
+document.getElementById('langToggle').onclick = () => {
+  localStorage.setItem('tms_lang', lang === 'zh' ? 'en' : 'zh');
+  location.reload();
+};
+</script>
+</body>
+</html>

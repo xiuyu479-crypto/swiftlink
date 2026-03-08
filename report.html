@@ -1,0 +1,582 @@
+<!doctype html>
+<html lang="en">
+<head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no,viewport-fit=cover">
+    <title>Driver Terminal - TMS</title>
+    <style>
+        :root { 
+            --primary: #1e63d8; 
+            --success: #27ae60; 
+            --danger: #e74c3c; 
+            --warning: #f39c12;
+            --bg: #f0f2f5; 
+            --card-bg: #ffffff;
+        }
+        
+        body { 
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif; 
+            background: var(--bg); 
+            margin: 0; 
+            padding: 0; 
+            color: #222;
+            -webkit-font-smoothing: antialiased;
+        }
+
+        /* Top Header */
+        .header { 
+            background: var(--primary); 
+            color: white; 
+            padding: 25px 15px; 
+            text-align: center; 
+            box-shadow: 0 4px 10px rgba(30,99,216,0.2);
+            position: sticky;
+            top: 0;
+            z-index: 100;
+        }
+        .header-title { font-size: 20px; font-weight: 800; letter-spacing: 1px; }
+
+        .container { padding-bottom: 30px; }
+
+        /* Card System */
+        .card { 
+            background: var(--card-bg); 
+            margin: 15px; 
+            padding: 20px; 
+            border-radius: 16px; 
+            box-shadow: 0 4px 12px rgba(0,0,0,0.08); 
+            border: 1px solid rgba(0,0,0,0.05);
+        }
+
+        .order-id-label { font-size: 14px; color: #7f8c8d; font-weight: 600; }
+        .order-id-val { font-size: 16px; font-weight: 700; color: #34495e; }
+        .order-type-tag { display:inline-block; font-size: 11px; padding: 2px 8px; border-radius: 4px; background: #eee; color: #555; vertical-align: middle; margin-left: 5px; }
+        
+        .plate-box { 
+            margin: 15px 0; 
+            padding: 10px; 
+            background: #f8faff; 
+            border-left: 5px solid var(--primary);
+            border-radius: 4px;
+        }
+        .plate-no { font-size: 32px; font-weight: 900; color: var(--primary); letter-spacing: -1px; }
+
+        /* Address & Info */
+        .info-group { margin-bottom: 25px; }
+        .info-header { 
+            display: flex; 
+            align-items: center; 
+            margin-bottom: 12px; 
+            font-size: 18px; 
+            font-weight: 800; 
+            color: #2c3e50; 
+        }
+        .icon-circle { 
+            width: 10px; height: 10px; border-radius: 50%; margin-right: 10px; 
+        }
+        .bg-pickup { background: var(--success); }
+        .bg-dropoff { background: var(--warning); }
+
+        .address-box { 
+            font-size: 18px; 
+            font-weight: 700; 
+            line-height: 1.4; 
+            color: #1a1a1a; 
+            margin-bottom: 10px;
+        }
+        .contact-box { 
+            display: flex; 
+            justify-content: space-between; 
+            font-size: 15px; 
+            background: #fdfdfd; 
+            padding: 10px; 
+            border-radius: 8px; 
+            border: 1px dashed #ddd;
+        }
+        .contact-box b { color: #555; }
+
+        /* Timer UI */
+        .timer-container { 
+            text-align: center; 
+            padding: 10px 0; 
+            border-bottom: 2px solid #eee; 
+            margin-bottom: 20px; 
+        }
+        .timer-label { font-size: 13px; font-weight: 700; color: #95a5a6; text-transform: uppercase; }
+        .timer-val { font-size: 42px; font-weight: 900; font-family: 'Courier New', monospace; }
+        .timer-green { color: var(--success); }
+        .timer-red { color: var(--danger); }
+
+        /* Status Action Area */
+        .status-header { font-size: 15px; font-weight: 600; color: #7f8c8d; }
+        .status-now { font-size: 24px; font-weight: 800; color: var(--primary); margin: 5px 0 20px 0; display: block; }
+
+        /* Slide to Confirm Bar */
+        .slider-wrapper {
+            position: relative; 
+            width: 100%; 
+            height: 70px; 
+            background: #ebedef;
+            border-radius: 35px; 
+            overflow: hidden;
+            box-shadow: inset 0 2px 5px rgba(0,0,0,0.1);
+        }
+        .slider-text {
+            position: absolute; width: 100%; height: 100%; text-align: center;
+            line-height: 70px; color: #7f8c8d; font-size: 16px; font-weight: 700; z-index: 1;
+        }
+        .slider-bg {
+            position: absolute; left: 0; top: 0; height: 100%;
+            background: linear-gradient(90deg, #27ae60, #2ecc71); width: 0; z-index: 2;
+        }
+        .slider-handle {
+            position: absolute; left: 0; top: 0; width: 70px; height: 70px;
+            background: #fff; border-radius: 50%; z-index: 3; cursor: pointer;
+            box-shadow: 0 4px 8px rgba(0,0,0,0.2); display: flex;
+            align-items: center; justify-content: center;
+        }
+        .slider-handle::after { content: '➔'; color: var(--success); font-size: 24px; font-weight: bold; }
+
+        /* Buttons: Issue & Expense */
+        .btn-block {
+            margin-top: 15px;
+            width: 100%;
+            padding: 15px;
+            border-radius: 12px;
+            font-size: 16px;
+            font-weight: 800;
+            cursor: pointer;
+            transition: all 0.2s;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 10px;
+        }
+        .issue-btn {
+            background: #fff;
+            color: var(--danger);
+            border: 2px solid var(--danger);
+        }
+        .issue-btn:active { background: var(--danger); color: #fff; }
+
+        .expense-btn {
+            background: #fff;
+            color: var(--success);
+            border: 2px solid var(--success);
+        }
+        .expense-btn:active { background: var(--success); color: #fff; }
+
+        /* Modal Generic */
+        .modal {
+            display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%;
+            background: rgba(0,0,0,0.6); z-index: 200; align-items: center; justify-content: center;
+            backdrop-filter: blur(4px);
+        }
+        .modal-content {
+            background: #fff; padding: 25px; border-radius: 20px; width: 85%; max-width: 400px;
+            box-shadow: 0 10px 30px rgba(0,0,0,0.2);
+        }
+        .modal-title { font-size: 20px; font-weight: 800; margin-bottom: 20px; text-align: center; }
+        
+        /* Form Inputs */
+        .form-row { margin-bottom: 15px; }
+        .form-label { display: block; font-size: 13px; font-weight: 600; color: #666; margin-bottom: 5px; }
+        .modal-input {
+            width: 100%; padding: 12px; border: 1px solid #ddd; border-radius: 8px;
+            font-size: 16px; box-sizing: border-box; background: #f9f9f9;
+        }
+        textarea.modal-input { resize: none; height: 80px; }
+        select.modal-input { background: #fff; }
+
+        .modal-actions { display: flex; gap: 10px; margin-top: 20px; }
+        .m-btn { flex: 1; padding: 12px; border-radius: 8px; border: none; font-weight: bold; font-size: 16px; cursor: pointer; }
+        .m-cancel { background: #f0f2f5; color: #666; }
+        .m-submit { background: var(--primary); color: #fff; }
+        .m-submit-red { background: var(--danger); color: #fff; }
+
+        .finish-screen { display: none; text-align: center; padding: 60px 20px; }
+        
+        #loading { position: fixed; top: 0; left: 0; width: 100%; height: 100%; 
+                   background: white; display: flex; flex-direction: column; align-items: center; 
+                   justify-content: center; z-index: 999; font-weight: bold; }
+    </style>
+</head>
+<body>
+
+<div id="loading">
+    <div style="font-size: 24px; color: var(--primary); margin-bottom: 10px;">TMS Terminal</div>
+    <div>Fetching Order Details...</div>
+</div>
+
+<div id="app" style="display:none;" class="container">
+    <div class="header">
+        <div class="header-title">DRIVER REPORT SYSTEM</div>
+    </div>
+
+    <div class="card">
+        <div style="display: flex; align-items: center; justify-content: space-between;">
+            <div>
+                <div class="order-id-label">ORDER NUMBER</div>
+                <div class="order-id-val"><span id="dispOrderId">--</span> <span id="dispType" class="order-type-tag"></span></div>
+            </div>
+        </div>
+        
+        <div class="plate-box">
+            <div class="order-id-label">TRUCK PLATE</div>
+            <div class="plate-no" id="dispTractor">--</div>
+        </div>
+        
+        <div class="info-group">
+            <div class="info-header"><div class="icon-circle bg-pickup"></div> LOADING POINT</div>
+            <div class="address-box" id="dispPickup">--</div>
+            <div class="contact-box">
+                <span><b>PCE:</b> <span id="dispPickupContact">--</span></span>
+                <span><b>TEL:</b> <span id="dispPickupPhone">--</span></span>
+            </div>
+        </div>
+
+        <div class="info-group">
+            <div class="info-header"><div class="icon-circle bg-dropoff"></div> UNLOADING POINT</div>
+            <div class="address-box" id="dispDropoff">--</div>
+            <div class="contact-box">
+                <span><b>PCE:</b> <span id="dispDropoffContact">--</span></span>
+                <span><b>TEL:</b> <span id="dispDropoffPhone">--</span></span>
+            </div>
+        </div>
+    </div>
+
+    <div class="card" id="actionArea">
+        <div class="timer-container">
+            <div class="timer-label">TASK DURATION</div>
+            <div id="statusTimer" class="timer-val timer-green">00:00:00</div>
+        </div>
+
+        <div class="status-header">CURRENT STATUS (Dynamic)</div>
+        <div class="status-now" id="statusLabel">--</div>
+        
+        <div class="slider-wrapper" id="sliderWrapper">
+            <div class="slider-text" id="nextStatusLabel">Slide to Confirm</div>
+            <div class="slider-bg" id="sliderBg"></div>
+            <div class="slider-handle" id="sliderHandle"></div>
+        </div>
+
+        <button class="btn-block expense-btn" id="openExpenseModal">
+            💰 REQUEST EXPENSE (费用申请)
+        </button>
+
+        <button class="btn-block issue-btn" id="openIssueModal">
+            ⚠️ REPORT ISSUE (上报异常)
+        </button>
+    </div>
+
+    <div class="card finish-screen" id="finishArea">
+        <div style="font-size: 60px;">✅</div>
+        <h2 style="font-size: 28px; margin: 10px 0;">ORDER FINISHED</h2>
+        <p style="color: #666; font-size: 18px;">All tasks completed. safe travels!</p>
+        <button onclick="location.reload()" style="margin-top: 20px; width: 100%; padding: 15px; border-radius: 12px; background: var(--primary); color: white; font-weight: bold; border: none; font-size: 18px;">Refresh</button>
+    </div>
+</div>
+
+<div class="modal" id="issueModal">
+    <div class="modal-content">
+        <div class="modal-title" style="color:var(--danger)">REPORT ISSUE</div>
+        <textarea class="modal-input" id="issueInput" placeholder="Describe the problem (e.g., breakdown, border delay, accident)..."></textarea>
+        <div class="modal-actions">
+            <button class="m-btn m-cancel" id="closeIssueModal">CANCEL</button>
+            <button class="m-btn m-submit-red" id="submitIssue">SUBMIT</button>
+        </div>
+    </div>
+</div>
+
+<div class="modal" id="expenseModal">
+    <div class="modal-content">
+        <div class="modal-title" style="color:var(--success)">NEW EXPENSE (费用申请)</div>
+        
+        <div class="form-row">
+            <label class="form-label">Expense Type (费用类型)</label>
+            <select class="modal-input" id="expType">
+                <option value="Fuel (燃油)">Fuel (燃油)</option>
+                <option value="Toll Gate (过路费)">Toll Gate (过路费)</option>
+                <option value="Parking (停车费)">Parking (停车费)</option>
+                <option value="Repair (维修)">Repair (维修)</option>
+                <option value="Fine (罚款)">Fine (罚款)</option>
+                <option value="Allowance (补贴)">Allowance (补贴)</option>
+                <option value="Other (其他)">Other (其他)</option>
+            </select>
+        </div>
+
+        <div class="form-row" style="display:flex; gap:10px;">
+            <div style="flex:1">
+                <label class="form-label">Amount (金额)</label>
+                <input type="number" class="modal-input" id="expAmount" placeholder="0.00">
+            </div>
+            <div style="width:80px">
+                <label class="form-label">Unit</label>
+                <select class="modal-input" id="expCurrency">
+                    <option value="ZMW">Kwacha</option>
+                    <option value="USD">USD</option>
+                </select>
+            </div>
+        </div>
+
+        <div class="form-row">
+            <label class="form-label">Remark (备注/详情)</label>
+            <textarea class="modal-input" id="expRemark" style="height:60px" placeholder="Details..."></textarea>
+        </div>
+
+        <div class="modal-actions">
+            <button class="m-btn m-cancel" id="closeExpenseModal">CANCEL</button>
+            <button class="m-btn m-submit" id="submitExpense" style="background:var(--success)">SUBMIT</button>
+        </div>
+    </div>
+</div>
+
+<script type="module">
+import { initializeApp } from "https://www.gstatic.com/firebasejs/9.23.0/firebase-app.js";
+import { getDatabase, ref, onValue, update, push, serverTimestamp } from "https://www.gstatic.com/firebasejs/9.23.0/firebase-database.js";
+
+const firebaseConfig = {
+  apiKey: "AIzaSyDEbePpsrXwD8Okqa93UOGUFE37c8SFHS0",
+  authDomain: "cjsmartcargo-datebase.firebaseapp.com",
+  databaseURL: "https://cjsmartcargo-datebase-default-rtdb.firebaseio.com",
+  projectId: "cjsmartcargo-datebase",
+  storageBucket: "cjsmartcargo-datebase.firebasestorage.app",
+  messagingSenderId: "751451468006",
+  appId: "1:751451468006:web:a3cbd33cf3c2b29f624b27"
+};
+
+const app = initializeApp(firebaseConfig);
+const db = getDatabase(app);
+
+const FLOWS = {
+    // 跨境流程 (Cross Border)
+    cross_border: [
+        {step:1, key:'confirmed', label:'Heading to Pickup', next:'Arrive Pickup'},
+        {step:2, key:'arrived_pickup', label:'Loading in Progress', next:'Finish Loading'},
+        {step:3, key:'loaded', label:'Waiting for Docs', next:'Docs Ready'},
+        {step:4, key:'documents_ready', label:'Heading to Border', next:'Arrive Border'},
+        {step:5, key:'arrived_border', label:'Clearing Customs', next:'Clear Border'},
+        {step:6, key:'cleared_border', label:'Crossing Border', next:'Cross Border'},
+        {step:7, key:'crossed_border', label:'Heading to Dropoff', next:'Arrive Dropoff'},
+        {step:8, key:'arrived_dropoff', label:'Unloading', next:'Finish Unload'},
+        {step:9, key:'unloaded', label:'Order Complete', next:'Complete Order'}
+    ],
+    // 境内流程 (Domestic)
+    domestic: [
+        {step:1, key:'confirmed', label:'Heading to Pickup', next:'Arrive Pickup'},
+        {step:2, key:'arrived_pickup', label:'Loading in Progress', next:'Finish Loading'},
+        {step:3, key:'loaded', label:'Waiting for Release', next:'Weighbridge Done'},
+        {step:4, key:'released', label:'Heading to Dropoff', next:'Arrive Dropoff'},
+        {step:5, key:'arrived_dropoff', label:'Unloading', next:'Finish Unload'},
+        {step:6, key:'unloaded', label:'Order Complete', next:'Complete Order'}
+    ]
+};
+
+const urlParams = new URLSearchParams(window.location.search);
+const orderId = urlParams.get('id');
+let currentOrderData = null;
+let currentStep = 1;
+let currentFlow = []; 
+
+if (!orderId) {
+    document.getElementById('loading').innerHTML = "INVALID LINK";
+} else {
+    onValue(ref(db, `tms/orders/${orderId}`), (snapshot) => {
+        const data = snapshot.val();
+        if (!data) {
+            document.getElementById('loading').innerHTML = "ORDER NOT FOUND";
+            return;
+        }
+        currentOrderData = data;
+        const type = data.orderType || 'cross_border';
+        currentFlow = FLOWS[type] || FLOWS.cross_border;
+        render(data, type);
+        document.getElementById('loading').style.display = 'none';
+        document.getElementById('app').style.display = 'block';
+    });
+}
+
+function render(data, type) {
+    document.getElementById('dispOrderId').innerText = orderId;
+    document.getElementById('dispType').innerText = type === 'domestic' ? 'DOMESTIC' : 'CROSS-BORDER';
+    document.getElementById('dispTractor').innerText = data.tractor || 'N/A';
+    document.getElementById('dispPickup').innerText = data.pickupAddr || '--';
+    document.getElementById('dispPickupContact').innerText = data.pickupContact || '--';
+    document.getElementById('dispPickupPhone').innerText = data.pickupPhone || '--';
+    document.getElementById('dispDropoff').innerText = data.dropoffAddr || '--';
+    document.getElementById('dispDropoffContact').innerText = data.dropoffContact || '--';
+    document.getElementById('dispDropoffPhone').innerText = data.dropoffPhone || '--';
+
+    currentStep = data.statusStep || 1;
+    
+    if (currentStep > currentFlow.length) {
+        document.getElementById('actionArea').style.display = 'none';
+        document.getElementById('finishArea').style.display = 'block';
+    } else {
+        const s = currentFlow[currentStep-1];
+        document.getElementById('statusLabel').innerText = s.label; 
+        document.getElementById('nextStatusLabel').innerText = "SLIDE: " + s.next;
+    }
+}
+
+// Timer Loop
+setInterval(() => {
+    if (!currentOrderData || !currentFlow.length || currentStep > currentFlow.length) return;
+    const key = currentFlow[currentStep-1].key;
+    const ts = currentOrderData.statusTimestamps || {};
+    const start = (ts[key] && ts[key].start) ? ts[key].start : currentOrderData.startTime;
+    
+    if (!start) return;
+    const diff = Date.now() - start;
+    const h = Math.floor(diff / 3600000);
+    const m = Math.floor((diff % 3600000) / 60000);
+    const s = Math.floor((diff % 60000) / 1000);
+    
+    const timerEl = document.getElementById('statusTimer');
+    timerEl.innerText = `${String(h).padStart(2,'0')}:${String(m).padStart(2,'0')}:${String(s).padStart(2,'0')}`;
+    timerEl.className = diff > 12 * 3600000 ? "timer-val timer-red" : "timer-val timer-green";
+}, 1000);
+
+// --- Issue Reporting Logic ---
+const issueModal = document.getElementById('issueModal');
+document.getElementById('openIssueModal').onclick = () => { issueModal.style.display = 'flex'; };
+document.getElementById('closeIssueModal').onclick = () => { issueModal.style.display = 'none'; };
+document.getElementById('submitIssue').onclick = async () => {
+    const text = document.getElementById('issueInput').value.trim();
+    if(!text) return;
+    try {
+        const currentIssues = currentOrderData.issues || [];
+        currentIssues.push({
+            message: text,
+            timestamp: Date.now(),
+            dateStr: new Date().toLocaleString()
+        });
+        await update(ref(db, `tms/orders/${orderId}`), {
+            issues: currentIssues,
+            hasActiveIssue: true
+        });
+        document.getElementById('issueInput').value = "";
+        issueModal.style.display = 'none';
+        alert("Report submitted successfully.");
+    } catch (e) { alert("Submit failed."); }
+};
+
+// --- Expense Reporting Logic (New) ---
+const expModal = document.getElementById('expenseModal');
+document.getElementById('openExpenseModal').onclick = () => { expModal.style.display = 'flex'; };
+document.getElementById('closeExpenseModal').onclick = () => { expModal.style.display = 'none'; };
+
+document.getElementById('submitExpense').onclick = async () => {
+    const type = document.getElementById('expType').value;
+    const amount = document.getElementById('expAmount').value;
+    const currency = document.getElementById('expCurrency').value;
+    const remark = document.getElementById('expRemark').value;
+
+    if(!amount) { alert("Please enter amount."); return; }
+
+    // 自动判断司机名称（优先取 Order 数据中的 driverName，没有则用车牌号代替）
+    const driverName = currentOrderData.driverName || currentOrderData.tractor || "Unknown Driver";
+
+    const payload = {
+        driverName: driverName,
+        plate: currentOrderData.tractor || "N/A", // 附带车牌号
+        orderId: orderId, // 关联订单号
+        amount: amount + " " + currency, // 例如: 500 ZMW
+        type: type,
+        remark: remark,
+        status: 'pending', // 初始状态为待审批
+        timestamp: Date.now(),
+        createdStr: new Date().toLocaleString()
+    };
+
+    try {
+        // 写入到 OA 模块监听的路径
+        await push(ref(db, 'tms/oa/driver_expenses'), payload);
+        
+        // 同时也把这个费用记录写回 Order 详情里备份 (可选，方便在订单里查看)
+        // const orderExp = currentOrderData.expenses || [];
+        // orderExp.push(payload);
+        // await update(ref(db, `tms/orders/${orderId}`), { expenses: orderExp });
+
+        document.getElementById('expAmount').value = "";
+        document.getElementById('expRemark').value = "";
+        expModal.style.display = 'none';
+        alert("Expense Request Sent! Waiting for Approval.\n费用已申请，等待审批。");
+    } catch (e) {
+        alert("Error sending request: " + e.message);
+    }
+};
+
+// --- Slider Logic ---
+const wrapper = document.getElementById('sliderWrapper');
+const handle = document.getElementById('sliderHandle');
+const bg = document.getElementById('sliderBg');
+let isDragging = false;
+let startX = 0;
+
+async function confirmStep() {
+    const target = currentStep + 1;
+    const now = Date.now();
+    const ts = currentOrderData.statusTimestamps || {};
+    const dur = currentOrderData.durations || {};
+    const currentStateObj = currentFlow[currentStep-1];
+    
+    const key = currentStateObj.key;
+    if (ts[key] && ts[key].start) {
+        dur[key] = (dur[key] || 0) + (now - ts[key].start);
+        ts[key].end = now;
+        delete ts[key].start;
+    }
+
+    let updatePayload = {
+        statusStep: target,
+        statusTimestamps: ts,
+        durations: dur,
+        status: currentStateObj.label 
+    };
+    
+    if (target <= currentFlow.length) {
+        const nextStateObj = currentFlow[target-1];
+        ts[nextStateObj.key] = { start: now };
+        updatePayload.status = nextStateObj.label; 
+    } else {
+        updatePayload.status = "Completed";
+    }
+
+    try {
+        await update(ref(db, `tms/orders/${orderId}`), updatePayload);
+    } catch (e) { alert("Error updating status."); }
+}
+
+const start = (e) => { isDragging = true; startX = (e.clientX || e.touches[0].clientX); handle.style.transition = 'none'; bg.style.transition = 'none'; };
+const move = (e) => {
+    if (!isDragging) return;
+    const x = (e.clientX || e.touches[0].clientX) - startX;
+    const max = wrapper.offsetWidth - handle.offsetWidth;
+    const pos = Math.max(0, Math.min(x, max));
+    handle.style.left = pos + 'px';
+    bg.style.width = (pos + 35) + 'px';
+    if (pos >= max) { 
+        isDragging = false; 
+        confirmStep(); 
+        resetSlider();
+    }
+};
+const resetSlider = () => {
+    handle.style.transition = 'left 0.3s';
+    bg.style.transition = 'width 0.3s';
+    handle.style.left = '0px';
+    bg.style.width = '0px';
+};
+const end = () => { if (isDragging) { isDragging = false; resetSlider(); } };
+
+handle.addEventListener('mousedown', start);
+handle.addEventListener('touchstart', start);
+window.addEventListener('mousemove', move);
+window.addEventListener('touchmove', move);
+window.addEventListener('mouseup', end);
+window.addEventListener('touchend', end);
+
+</script>
+</body>
+</html>
