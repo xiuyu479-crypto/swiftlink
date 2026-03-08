@@ -1,11 +1,11 @@
 // For Firebase JS SDK v7.20.0 and later, measurementId is optional
 const firebaseConfig = {
-  apiKey: "AIzaSyDEbePpsrXwD8Okqa93UOGUFE37c8SFHS0",
-  authDomain: "cjsmartcargo-datebase.firebaseapp.com",
-  databaseURL: "https://cjsmartcargo-datebase-default-rtdb.firebaseio.com",
-  projectId: "cjsmartcargo-datebase",
-  storageBucket: "cjsmartcargo-datebase.firebasestorage.app",
-  messagingSenderId: "751451468006",
-  appId: "1:751451468006:web:a3cbd33cf3c2b29f624b27",
-  measurementId: "G-CY27SJXH4C"
+  apiKey: "AIzaSyCqlKj-5Q_DQi0-M9IUQA_8pOCzkAbBqN4",
+  authDomain: "swiftlink-4f2db.firebaseapp.com",
+  databaseURL: "https://swiftlink-4f2db-default-rtdb.asia-southeast1.firebasedatabase.app",
+  projectId: "swiftlink-4f2db",
+  storageBucket: "swiftlink-4f2db.firebasestorage.app",
+  messagingSenderId: "10862149808",
+  appId: "1:10862149808:web:e928d71e3baa01fcd1fb75",
+  measurementId: "G-B81SQHJQV5"
 };

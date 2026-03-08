@@ -6,15 +6,15 @@ exports.handler = async (event, context) => {
   try {
     const { username, password } = JSON.parse(event.body);
 
-    // 用户数据库示例占位符
+    // 数据库访问密码
     const users = {
-      "uki202797": { 
-        password: "zxcvbnm", 
+      "swiftlinkadmin": { 
+        password: "12345678", 
         role: "admin", 
         token: "tk_admin_999" 
       },
-      "cjsmartcargo": { 
-        password: "smart2026", 
+      "swiftplubic": { 
+        password: "swift2026", 
         role: "staff", 
         token: "tk_staff_888" 
       },
